@@ -161,22 +161,7 @@ function updateTypingProgress() {
     }
 }
 
-// --- 볼륨 버튼 타이핑 점수 (Phase 4) ---
-// Android: keydown AudioVolumeUp/Down
-// iOS 폴백: 화면 탭
-window.addEventListener('keydown', (e) => {
-    const typingArea = document.getElementById('typingArea');
-    if (!isClimax || typingArea.style.display === 'none') return;
-    if (!volumeBtnRegistered) return;
-
-    if (e.key === 'AudioVolumeUp' || e.key === 'AudioVolumeDown' ||
-        e.key === 'VolumeUp'      || e.key === 'VolumeDown') {
-        e.preventDefault();
-        typingScore++;
-        typingScore = Math.min(MAX_TYPING_SCORE, typingScore);
-        updateTypingProgress();
-    }
-});
+// (손바닥 터치 점수는 Phase 3 진입 시 동적으로 등록됨)
 
 // ── Phase 5: 카메라 ──
 function triggerPhase5() {
@@ -683,8 +668,8 @@ function animate() {
 
                 const messages = [
                     "나의 온기를 나눠드릴게요",
-                    "폰 옆면의 버튼을 찾아주세요",
-                    "따뜻해질 때까지 마구 눌러주세요"
+                    "손바닥으로 화면을 쓰다듬어줘요",
+                    "따뜻해질 때까지 마구 쓰다듬어줘요"
                 ];
                 let seqIndex = 0;
 
@@ -693,8 +678,8 @@ function animate() {
                         seqText.style.opacity = '0';
 
                         // ── 타이핑 페이즈 진입 ──
-                        function startTypingPhase(keyLabel) {
-                            if (keyLabel) {
+                        function startTypingPhase(hintText) {
+                            if (hintText) {
                                 const keyHint = document.createElement('div');
                                 keyHint.id = 'keyHint';
                                 keyHint.style.cssText = `
@@ -708,7 +693,7 @@ function animate() {
                                     pointer-events: none; z-index: 200;
                                     text-shadow: 0 0 14px rgba(235,80,130,0.28);
                                 `;
-                                keyHint.innerText = keyLabel;
+                                keyHint.innerText = hintText;
                                 document.body.appendChild(keyHint);
                                 setTimeout(() => { keyHint.style.opacity = '1'; }, 50);
                             }
@@ -718,84 +703,26 @@ function animate() {
                             updateTypingProgress();
                         }
 
-                        // ── 볼륨 버튼 등록 프롬프트 ──
-                        const regPrompt = document.createElement('div');
-                        regPrompt.style.cssText = `
-                            position: fixed; top: 50%; left: 50%;
-                            transform: translate(-50%, -50%);
-                            font-family: 'Noto Sans KR', sans-serif;
-                            font-size: 17px; font-weight: 300;
-                            color: rgba(130,50,70,0.88);
-                            letter-spacing: 0.1em; text-align: center; line-height: 2.4;
-                            opacity: 0; transition: opacity 0.8s ease;
-                            pointer-events: none; z-index: 500;
-                            text-shadow: 0 0 14px rgba(235,80,130,0.28);
-                        `;
-                        regPrompt.innerHTML = `폰 옆면의 볼륨 버튼을<br>한 번 눌러주세요`;
-                        document.body.appendChild(regPrompt);
-                        setTimeout(() => { regPrompt.style.opacity = '1'; }, 50);
-
-                        // Android: keydown 이벤트로 감지
-                        function onVolumeKey(e) {
-                            if (e.key === 'AudioVolumeUp'  || e.key === 'AudioVolumeDown' ||
-                                e.key === 'VolumeUp'       || e.key === 'VolumeDown') {
-                                e.preventDefault();
-                                confirmVolumeReg('볼륨 버튼');
+                        // ── 손바닥 터치 감지: touchstart당 +1% ──
+                        // 손바닥(3+ 포인트) 또는 일반 터치 모두 카운트
+                        // typingScore += 5 = 1% (MAX_TYPING_SCORE 500 기준)
+                        function onPalmTouch(e) {
+                            const ta = document.getElementById('typingArea');
+                            if (!ta || ta.style.display === 'none') {
+                                window.removeEventListener('touchstart', onPalmTouch);
+                                return;
                             }
+                            // 손바닥(3+) 이면 1%, 아니면 0.5%
+                            const pts = e.touches.length;
+                            typingScore += pts >= 3 ? 5 : 2;
+                            typingScore = Math.min(MAX_TYPING_SCORE, typingScore);
+                            updateTypingProgress();
                         }
 
-                        // iOS 폴백: 화면 탭 3회로 등록
-                        let tapCount = 0;
-                        let tapTimer = null;
-                        function onFallbackTap() {
-                            tapCount++;
-                            if (tapTimer) clearTimeout(tapTimer);
-                            tapTimer = setTimeout(() => { tapCount = 0; }, 1000);
-                            if (tapCount >= 3) {
-                                window.removeEventListener('touchend', onFallbackTap);
-                                confirmVolumeReg('화면 탭');
-                            }
-                        }
-
-                        function confirmVolumeReg(label) {
-                            window.removeEventListener('keydown', onVolumeKey);
-                            window.removeEventListener('touchend', onFallbackTap);
-                            volumeBtnRegistered = true;
-
-                            regPrompt.style.transition = 'opacity 0.3s ease';
-                            regPrompt.innerHTML = `<span style="font-size:13px; opacity:0.55; letter-spacing:0.12em;">등록됐어요</span>`;
-
-                            setTimeout(() => {
-                                regPrompt.style.opacity = '0';
-                                setTimeout(() => {
-                                    regPrompt.remove();
-                                    startTypingPhase(label);
-                                    // 볼륨 버튼으로 타이핑 점수 계속 누적
-                                    window.addEventListener('keydown', (e) => {
-                                        const ta = document.getElementById('typingArea');
-                                        if (!ta || ta.style.display === 'none') return;
-                                        if (e.key === 'AudioVolumeUp' || e.key === 'AudioVolumeDown' ||
-                                            e.key === 'VolumeUp'      || e.key === 'VolumeDown') {
-                                            e.preventDefault();
-                                            typingScore++;
-                                            typingScore = Math.min(MAX_TYPING_SCORE, typingScore);
-                                            updateTypingProgress();
-                                        }
-                                    });
-                                    // iOS 폴백: 화면 탭으로 점수 누적
-                                    canvas.addEventListener('touchend', () => {
-                                        const ta = document.getElementById('typingArea');
-                                        if (!ta || ta.style.display === 'none') return;
-                                        typingScore++;
-                                        typingScore = Math.min(MAX_TYPING_SCORE, typingScore);
-                                        updateTypingProgress();
-                                    });
-                                }, 600);
-                            }, 900);
-                        }
-
-                        window.addEventListener('keydown', onVolumeKey);
-                        window.addEventListener('touchend', onFallbackTap);
+                        setTimeout(() => {
+                            startTypingPhase('손바닥으로 화면을 쓰다듬어줘요');
+                            window.addEventListener('touchstart', onPalmTouch, { passive: true });
+                        }, 600);
                         return;
                     }
 

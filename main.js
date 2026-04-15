@@ -1313,7 +1313,7 @@ function animate() {
             feedbackText = '살짝 마우스를 얹고 아주 천천히 쓰다듬어 주세요...';
         }
     } else if (touchScore >= 0.1) {
-        const tempNow = (34 + touchScore * 3).toFixed(2);
+        const tempNow = (34 + touchScore * 2.5).toFixed(2);
         if (mouseSpeed > 5.5) {
             feedbackText = '너무 강해요... 진정하세요...';
             feedbackColor = 'rgba(220, 80, 50, 0.9)';

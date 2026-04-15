@@ -867,7 +867,7 @@ function animate() {
         if (isTouching && isInsideRing && touchSpeed > 5.5) feedbackText = '너무 거칠어요... 조금 더 조심스럽게...';
         else if (satisfactionScore > 0.5) feedbackText = '살짝 손가락을 얹고 천천히 쓸어주세요...';
     } else if (touchScore >= 0.1) {
-        const tempNow = (34 + touchScore * 3).toFixed(2);
+        const tempNow = (34 + touchScore * 2.5).toFixed(2);
         if (touchSpeed > 5.5) { feedbackText = '너무 강해요... 진정하세요...'; feedbackColor = 'rgba(220,80,50,0.9)'; }
         else { feedbackText = touchScore >= 0.99 ? `${tempNow}°C  완벽해요...` : `${tempNow}°C`; feedbackColor = 'rgba(180,40,40,0.85)'; }
     }

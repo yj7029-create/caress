@@ -546,16 +546,30 @@ class Particle {
         this.speed = (Math.random() - 0.5) * 0.015;
         const rand = Math.random();
         const alpha = Math.random() * 0.4 + 0.4;
-        if (rand < 0.66) {
-            const lightness = 35 + Math.random() * 30;
-            const hue = 25 + Math.random() * 10;
-            this.color = `hsla(${hue}, 70%, ${lightness}%, ${alpha})`;
+        if (rand < 0.35) {
+            // 웜 브라운 / 테라코타
+            const hue = 15 + Math.random() * 20;
+            const sat = 45 + Math.random() * 30;
+            const lit = 30 + Math.random() * 35;
+            this.color = `hsla(${hue}, ${sat}%, ${lit}%, ${alpha})`;
+        } else if (rand < 0.65) {
+            // 더스티 로즈 / 모브
+            const hue = 340 + Math.random() * 30;
+            const sat = 40 + Math.random() * 40;
+            const lit = 50 + Math.random() * 20;
+            this.color = `hsla(${hue}, ${sat}%, ${lit}%, ${alpha})`;
+        } else if (rand < 0.85) {
+            // 코랄 / 웜 레드 핑크
+            const hue = Math.random() * 15;
+            const sat = 60 + Math.random() * 30;
+            const lit = 45 + Math.random() * 25;
+            this.color = `hsla(${hue}, ${sat}%, ${lit}%, ${alpha})`;
         } else {
-            const neonRand = Math.random();
-            if (neonRand < 0.25)      this.color = `hsla(180,100%,50%,${alpha})`;
-            else if (neonRand < 0.5)  this.color = `hsla(60,100%,50%,${alpha})`;
-            else if (neonRand < 0.75) this.color = `hsla(320,100%,60%,${alpha})`;
-            else                      this.color = `hsla(0,100%,55%,${alpha})`;
+            // 딥 버건디 / 와인
+            const hue = 330 + Math.random() * 20;
+            const sat = 50 + Math.random() * 30;
+            const lit = 25 + Math.random() * 20;
+            this.color = `hsla(${hue}, ${sat}%, ${lit}%, ${alpha})`;
         }
     }
 

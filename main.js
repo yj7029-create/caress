@@ -750,28 +750,34 @@ class Particle {
         this.baseRadius = Math.pow(Math.random(), 0.7);
         this.size = Math.random() * 2 + 0.5;
         this.speed = (Math.random() - 0.5) * 0.015; // Slow ambient rotation
-        // Particle Colors: 2/3 Brown, 1/3 (Bright Cyan, Bright Neon Yellow, Bright Pink, Bright Red)
+        // Particle Colors: brown → dusty rose → coral → burgundy
         const rand = Math.random();
         const alpha = Math.random() * 0.4 + 0.4; // 0.4 to 0.8
 
-        if (rand < 0.66) {
-            // Brown to Light Brown spectrum
-            // Lightness from 35% to 65% (adds light brown)
-            const lightness = 35 + Math.random() * 30;
-            const hue = 25 + Math.random() * 10; // Hue 25 to 35
-            this.color = `hsla(${hue}, 70%, ${lightness}%, ${alpha})`;
+        if (rand < 0.35) {
+            // 웜 브라운 / 테라코타
+            const hue = 15 + Math.random() * 20;       // 15–35
+            const sat = 45 + Math.random() * 30;        // 45–75%
+            const lit = 30 + Math.random() * 35;        // 30–65%
+            this.color = `hsla(${hue}, ${sat}%, ${lit}%, ${alpha})`;
+        } else if (rand < 0.65) {
+            // 더스티 로즈 / 모브
+            const hue = 340 + Math.random() * 30;       // 340–370
+            const sat = 40 + Math.random() * 40;        // 40–80%
+            const lit = 50 + Math.random() * 20;        // 50–70%
+            this.color = `hsla(${hue}, ${sat}%, ${lit}%, ${alpha})`;
+        } else if (rand < 0.85) {
+            // 코랄 / 웜 레드 핑크
+            const hue = Math.random() * 15;             // 0–15
+            const sat = 60 + Math.random() * 30;        // 60–90%
+            const lit = 45 + Math.random() * 25;        // 45–70%
+            this.color = `hsla(${hue}, ${sat}%, ${lit}%, ${alpha})`;
         } else {
-            // Pick from the 4 bright colors
-            const neonRand = Math.random();
-            if (neonRand < 0.25) {
-                this.color = `hsla(180, 100%, 50%, ${alpha})`; // Bright Cyan
-            } else if (neonRand < 0.5) {
-                this.color = `hsla(60, 100%, 50%, ${alpha})`; // Bright Neon Yellow
-            } else if (neonRand < 0.75) {
-                this.color = `hsla(320, 100%, 60%, ${alpha})`; // Bright Pink
-            } else {
-                this.color = `hsla(0, 100%, 55%, ${alpha})`; // Bright Red
-            }
+            // 딥 버건디 / 와인
+            const hue = 330 + Math.random() * 20;       // 330–350
+            const sat = 50 + Math.random() * 30;        // 50–80%
+            const lit = 25 + Math.random() * 20;        // 25–45%
+            this.color = `hsla(${hue}, ${sat}%, ${lit}%, ${alpha})`;
         }
     }
 

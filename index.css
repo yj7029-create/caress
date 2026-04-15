@@ -1,0 +1,152 @@
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    overflow: hidden;
+    background: #fff;
+    font-family: 'Noto Sans KR', sans-serif;
+}
+
+/* ── Canvas ── */
+#caressCanvas {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    display: block;
+    touch-action: none;
+}
+
+/* ── Phase 3/4: Typing Container (풀스크린 오버레이) ── */
+#typingContainer {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    pointer-events: none;
+    /* display: none → JS로 제어 */
+}
+
+/* 가장자리 흰색 비네팅 — 구석에만 미세하게 */
+#typingVignette {
+    position: fixed;
+    inset: 0;
+    background:
+        linear-gradient(to bottom, rgba(255,255,255,0.3) 0%, transparent 6%),
+        linear-gradient(to top,    rgba(255,255,255,0.3) 0%, transparent 6%),
+        linear-gradient(to right,  rgba(255,255,255,0.3) 0%, transparent 5%),
+        linear-gradient(to left,   rgba(255,255,255,0.3) 0%, transparent 5%);
+    pointer-events: none;
+    z-index: 101;
+}
+
+/* 타이핑 입력 영역 — 상단 중앙, 누적 텍스트 위로 스크롤 */
+#typingArea {
+    position: fixed;
+    top: 10%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(680px, 88vw);
+    max-height: 55vh;
+
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: clamp(24px, 3.2vw, 34px);
+    font-weight: 300;
+    color: rgba(130, 50, 70, 0.88);
+    letter-spacing: 0.06em;
+    line-height: 1.7;
+    text-align: center;
+
+    background: transparent;
+    border: none;
+    outline: none;
+    caret-color: rgba(130, 50, 70, 0.5);
+    word-break: break-all;
+    overflow-y: auto;
+    /* 스크롤바 숨기기 */
+    scrollbar-width: none;
+    pointer-events: auto;
+    z-index: 102;
+}
+
+#typingArea::-webkit-scrollbar { display: none; }
+
+/* contenteditable 플레이스홀더 */
+#typingArea:empty::before {
+    content: attr(placeholder);
+    color: rgba(130, 50, 70, 0.25);
+}
+
+/* 온기 퍼센티지 + 진행 바 — 하단 중앙 */
+#typingProgress {
+    position: fixed;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    pointer-events: none;
+    z-index: 102;
+}
+
+/* Phase 3 시퀀스 텍스트 (JS에서 position:fixed 적용) */
+#sequenceText {
+    pointer-events: none;
+}
+
+/* ── White-out overlay ── */
+#whiteoutOverlay {
+    position: fixed;
+    inset: 0;
+    background: #fff;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 400;
+    transition: opacity 0.3s ease;
+}
+
+/* ── Phase 5: Webcam ── */
+#phase5Container {
+    position: fixed;
+    inset: 0;
+    z-index: 500;
+    opacity: 0;
+    transition: opacity 1s ease;
+    background: #fce8ef; /* 연한 핑크 */
+    /* display → JS로 제어 */
+}
+
+#pixelCanvas {
+    display: none; /* 얼굴 인식 처리용, 화면에 표시 안 함 */
+}
+
+#proximityText {
+    font-family: 'Noto Sans KR', sans-serif;
+    font-weight: 300;
+    letter-spacing: 0.1em;
+    text-align: center;
+    text-shadow: 0 0 16px rgba(235, 80, 130, 0.4);
+}
+
+#typingArea {
+    text-shadow: 0 0 14px rgba(235, 80, 130, 0.25);
+}
+
+/* ── Final Page: 깜빡이는 텍스트 ── */
+@keyframes blinkText {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0; }
+}
+
+/* ── Phase 6: 하트 떠오르기 ── */
+@keyframes heartFloat {
+    0%   { opacity: 0;   transform: translateY(0)      translateX(0); }
+    15%  { opacity: 0.9; }
+    100% { opacity: 0;   transform: translateY(-85vh)  translateX(var(--drift)); }
+}
+
+/* ── Phase 6: 완료 메시지 페이드인 ── */
+@keyframes fadeInUp {
+    0%   { opacity: 0; transform: translateY(20px); }
+    100% { opacity: 1; transform: translateY(0); }
+}

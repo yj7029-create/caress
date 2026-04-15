@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Caress</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="mobile.css">
+
+    <!-- MediaPipe Face Detection -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js" crossorigin="anonymous"></script>
+</head>
+<body>
+    <canvas id="caressCanvas"></canvas>
+
+    <div id="typingContainer">
+        <div id="sequenceText"></div>
+        <div id="typingArea" contenteditable="true" spellcheck="false" placeholder="나를 따뜻하게 안아주세요" style="display:none;"></div>
+        <div id="typingProgress" style="display:none;">온기: 0%</div>
+    </div>
+
+    <div id="whiteoutOverlay"></div>
+
+    <div id="phase5Container" style="display:none;">
+        <video id="webcam" style="display:none;" playsinline autoplay></video>
+        <canvas id="pixelCanvas"></canvas>
+        <div id="proximityText" style="display:none;"></div>
+    </div>
+
+    <script src="mobile.js"></script>
+</body>
+</html>

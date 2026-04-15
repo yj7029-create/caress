@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Responsive Caress</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="index.css">
+
+    <!-- Mobile redirect -->
+    <script>
+        if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+            window.location.replace('mobile.html');
+        }
+    </script>
+    
+    <!-- MediaPipe Face Detection -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js" crossorigin="anonymous"></script>
+</head>
+<body>
+    <canvas id="caressCanvas"></canvas>
+    
+    <div id="typingContainer">
+        <!-- Sequence Text Layer -->
+        <div id="sequenceText"></div>
+        
+        <!-- Typing Interface -->
+        <div id="typingArea" contenteditable="true" spellcheck="false" placeholder="나를 따뜻하게 안아주세요" style="display:none;"></div>
+        
+        <!-- Progress Text -->
+        <div id="typingProgress" style="display:none;">온기: 0%</div>
+    </div>
+    
+    <!-- White-out overlay -->
+    <div id="whiteoutOverlay"></div>
+    
+    <!-- Phase 5 Container -->
+    <div id="phase5Container" style="display:none;">
+        <video id="webcam" style="display:none;" playsinline autoplay></video>
+        <canvas id="pixelCanvas"></canvas>
+        <div id="proximityText" style="display:none;"></div>
+    </div>
+
+    <script src="main.js"></script>
+</body>
+</html>

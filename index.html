@@ -12,106 +12,182 @@
         }
     </script>
 
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400&display=swap" rel="stylesheet">
+
+    <!-- MediaPipe -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js" crossorigin="anonymous"></script>
+
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { overflow: hidden; cursor: grab; }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body { overflow: hidden; background: #fff; font-family: 'Noto Sans KR', sans-serif; cursor: grab; }
         body.dragging { cursor: grabbing; }
 
-        /* Phase 1 — 유도 링 */
+        /* ── Phase 1 유도 링 ── */
         #guideRing {
             position: fixed; top: 50%; left: 50%;
             transform: translate(-50%, -50%);
-            width: 62vh; height: 62vh;
-            border-radius: 50%;
+            width: 62vh; height: 62vh; border-radius: 50%;
             border: 1.5px solid rgba(190, 110, 130, 0.22);
-            filter: blur(6px);
-            pointer-events: none;
+            filter: blur(6px); pointer-events: none;
             transition: opacity 0.8s ease, border-color 0.4s ease;
         }
-        #guideRing.inZone {
-            border-color: rgba(210, 120, 140, 0.55);
-            filter: blur(10px);
-        }
+        #guideRing.inZone { border-color: rgba(210,120,140,0.55); filter: blur(10px); }
 
-        /* Phase 1 — 만족도 SVG 아크 */
+        /* ── Phase 1 만족도 아크 ── */
         #satisfactionSVG {
             position: fixed; top: 50%; left: 50%;
             transform: translate(-50%, -50%);
             width: 72vh; height: 72vh;
-            pointer-events: none;
-            opacity: 0;
+            pointer-events: none; opacity: 0;
             transition: opacity 0.5s ease;
         }
 
-        /* Phase 2 — 온도 + 피드백 */
+        /* ── Phase 2 피드백 ── */
         #feedbackUI {
             position: fixed; bottom: 52px; left: 50%;
             transform: translateX(-50%);
             font-family: 'Noto Sans KR', sans-serif;
             font-size: 13px; font-weight: 300;
-            color: rgba(180, 40, 40, 0.85);
-            letter-spacing: 0.1em;
-            text-align: center;
-            opacity: 0; pointer-events: none;
+            color: rgba(180,40,40,0.85); letter-spacing: 0.1em;
+            text-align: center; opacity: 0; pointer-events: none;
             transition: opacity 0.5s ease;
-            text-shadow: 0 0 14px rgba(235, 80, 130, 0.28);
+            text-shadow: 0 0 14px rgba(235,80,130,0.28);
             white-space: nowrap;
         }
 
-        /* 힌트 */
+        /* ── 힌트 ── */
         #hint {
             position: fixed; bottom: 28px; left: 50%;
             transform: translateX(-50%);
             font-family: 'Noto Sans KR', sans-serif;
             font-size: 11px; font-weight: 300;
-            color: rgba(160, 80, 95, 0.35);
-            letter-spacing: 0.28em;
-            pointer-events: none;
-            transition: opacity 1s ease;
-            white-space: nowrap;
+            color: rgba(160,80,95,0.35); letter-spacing: 0.28em;
+            pointer-events: none; transition: opacity 1s ease; white-space: nowrap;
         }
 
-        /* 페이즈 전환 메시지 */
+        /* ── 페이즈 전환 메시지 ── */
         #phaseMsg {
             position: fixed; top: 50%; left: 50%;
             transform: translate(-50%, -50%);
             font-family: 'Noto Sans KR', sans-serif;
             font-size: 18px; font-weight: 300;
-            color: rgba(130, 50, 70, 0.88);
-            letter-spacing: 0.15em;
-            text-align: center;
-            opacity: 0; pointer-events: none;
+            color: rgba(130,50,70,0.88); letter-spacing: 0.15em;
+            text-align: center; opacity: 0; pointer-events: none;
             transition: opacity 0.8s ease;
-            text-shadow: 0 0 18px rgba(235, 80, 130, 0.3);
+            text-shadow: 0 0 18px rgba(235,80,130,0.3);
+        }
+
+        /* ── Phase 3/4: 타이핑 컨테이너 ── */
+        #typingContainer {
+            display: none; position: fixed; inset: 0;
+            z-index: 100; pointer-events: none;
+        }
+        #typingVignette {
+            position: fixed; inset: 0;
+            background:
+                linear-gradient(to bottom, rgba(255,255,255,0.3) 0%, transparent 6%),
+                linear-gradient(to top,    rgba(255,255,255,0.3) 0%, transparent 6%),
+                linear-gradient(to right,  rgba(255,255,255,0.3) 0%, transparent 5%),
+                linear-gradient(to left,   rgba(255,255,255,0.3) 0%, transparent 5%);
+            pointer-events: none; z-index: 101;
+        }
+        #typingArea {
+            position: fixed; top: 10%; left: 50%;
+            transform: translateX(-50%);
+            width: min(680px, 88vw); max-height: 55vh;
+            font-family: 'Noto Sans KR', sans-serif;
+            font-size: clamp(24px, 3.2vw, 34px); font-weight: 300;
+            color: rgba(130,50,70,0.88); letter-spacing: 0.06em;
+            line-height: 1.7; text-align: center;
+            background: transparent; border: none; outline: none;
+            caret-color: rgba(130,50,70,0.5);
+            word-break: break-all; overflow-y: auto;
+            scrollbar-width: none; pointer-events: auto; z-index: 102;
+            text-shadow: 0 0 14px rgba(235,80,130,0.25);
+        }
+        #typingArea::-webkit-scrollbar { display: none; }
+        #typingArea:empty::before {
+            content: attr(placeholder); color: rgba(130,50,70,0.25);
+        }
+        #typingProgress {
+            position: fixed; bottom: 40px; left: 50%;
+            transform: translateX(-50%);
+            text-align: center; pointer-events: none; z-index: 102;
+        }
+        #sequenceText { pointer-events: none; }
+
+        /* ── White-out ── */
+        #whiteoutOverlay {
+            position: fixed; inset: 0; background: #fff;
+            opacity: 0; pointer-events: none; z-index: 400;
+            transition: opacity 0.3s ease;
+        }
+
+        /* ── Phase 5: 웹캠 ── */
+        #phase5Container {
+            position: fixed; inset: 0; z-index: 500;
+            opacity: 0; transition: opacity 1s ease;
+            background: #fce8ef; display: none;
+        }
+        #pixelCanvas { display: none; }
+        #proximityText {
+            font-family: 'Noto Sans KR', sans-serif; font-weight: 300;
+            letter-spacing: 0.1em; text-align: center;
+            text-shadow: 0 0 16px rgba(235,80,130,0.4);
+        }
+
+        /* ── 애니메이션 키프레임 ── */
+        @keyframes blinkText {
+            0%, 100% { opacity: 1; }
+            50%       { opacity: 0; }
+        }
+        @keyframes heartFloat {
+            0%   { opacity: 0;   transform: translateY(0) translateX(0); }
+            15%  { opacity: 0.9; }
+            100% { opacity: 0;   transform: translateY(-85vh) translateX(var(--drift)); }
+        }
+        @keyframes fadeInUp {
+            0%   { opacity: 0; transform: translateY(20px); }
+            100% { opacity: 1; transform: translateY(0); }
         }
     </style>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300&display=swap" rel="stylesheet">
 </head>
 <body>
 
-<!-- Phase 1 UI -->
+<!-- Phase 1/2 UI -->
 <div id="guideRing"></div>
 <svg id="satisfactionSVG" viewBox="0 0 100 100">
-    <circle cx="50" cy="50" r="47" fill="none"
-        stroke="rgba(200,130,150,0.10)" stroke-width="0.6"/>
+    <circle cx="50" cy="50" r="47" fill="none" stroke="rgba(200,130,150,0.10)" stroke-width="0.6"/>
     <circle id="satArc" cx="50" cy="50" r="47" fill="none"
         stroke="rgba(200,120,140,0.7)" stroke-width="0.6"
-        stroke-linecap="round"
-        transform="rotate(-90 50 50)"/>
+        stroke-linecap="round" transform="rotate(-90 50 50)"/>
 </svg>
-
-<!-- Phase 2 UI -->
 <div id="feedbackUI"></div>
-
-<!-- 공통 -->
 <div id="hint">스크롤 — 크기 조절</div>
 <div id="phaseMsg"></div>
 
+<!-- Phase 3/4: 타이핑 -->
+<div id="typingContainer">
+    <div id="sequenceText"></div>
+    <div id="typingArea" contenteditable="true" spellcheck="false"
+         placeholder="나를 따뜻하게 안아주세요" style="display:none;"></div>
+    <div id="typingProgress" style="display:none;"></div>
+</div>
+<div id="whiteoutOverlay"></div>
+
+<!-- Phase 5: 웹캠 -->
+<div id="phase5Container">
+    <video id="webcam" style="display:none;" playsinline autoplay></video>
+    <canvas id="pixelCanvas"></canvas>
+    <div id="proximityText" style="display:none;"></div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
-// ═══════════════════════════════
-//  기본 세팅
-// ═══════════════════════════════
+// ════════════════════════════════════════
+//  Three.js 기본 세팅
+// ════════════════════════════════════════
 const scene    = new THREE.Scene();
 const camera   = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 100);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -120,9 +196,9 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setClearColor(0xffffff);
 document.body.appendChild(renderer.domElement);
 
-// ═══════════════════════════════
-//  파티클
-// ═══════════════════════════════
+// ════════════════════════════════════════
+//  파티클 생성
+// ════════════════════════════════════════
 function makeCircleTex() {
     const c = document.createElement('canvas');
     c.width = c.height = 128;
@@ -139,12 +215,12 @@ function makeCircleTex() {
 
 const N = 680, SPHERE_R = 1.5;
 const golden = Math.PI * (3 - Math.sqrt(5));
-
-const origPos  = new Float32Array(N * 3);
-const posArr   = new Float32Array(N * 3);
-const colBase  = new Float32Array(N * 3);
-const colArr   = new Float32Array(N * 3);
-const sizeArr  = new Float32Array(N);
+const origPos    = new Float32Array(N * 3);
+const posArr     = new Float32Array(N * 3);
+const colBase    = new Float32Array(N * 3);
+const colArr     = new Float32Array(N * 3);
+const sizeArr    = new Float32Array(N);
+const dissolveV  = new Float32Array(N * 3); // 해체 시 각 파티클 방향
 
 for (let i = 0; i < N; i++) {
     const yi = 1 - (i / (N-1)) * 2;
@@ -155,6 +231,14 @@ for (let i = 0; i < N; i++) {
     origPos[i*3]   = posArr[i*3]   = Math.cos(th) * ry * r;
     origPos[i*3+1] = posArr[i*3+1] = yi * r;
     origPos[i*3+2] = posArr[i*3+2] = Math.sin(th) * ry * r;
+
+    // 해체 방향: 바깥쪽 + 랜덤 흩뜨림
+    const nx = origPos[i*3], ny = origPos[i*3+1], nz = origPos[i*3+2];
+    const nl = Math.sqrt(nx*nx+ny*ny+nz*nz);
+    const spread = 0.6 + Math.random() * 0.8;
+    dissolveV[i*3]   = (nx/nl + (Math.random()-0.5)*0.6) * spread;
+    dissolveV[i*3+1] = (ny/nl + (Math.random()-0.5)*0.6) * spread;
+    dissolveV[i*3+2] = (nz/nl + (Math.random()-0.5)*0.6) * spread;
 
     const t = Math.random();
     let h, s, l;
@@ -167,11 +251,10 @@ for (let i = 0; i < N; i++) {
     colBase[i*3] = colArr[i*3] = col.r;
     colBase[i*3+1] = colArr[i*3+1] = col.g;
     colBase[i*3+2] = colArr[i*3+2] = col.b;
-
     sizeArr[i] = 0.09 + Math.random() * 0.05;
 }
 
-const geo = new THREE.BufferGeometry();
+const geo     = new THREE.BufferGeometry();
 const posAttr = new THREE.BufferAttribute(posArr, 3).setUsage(THREE.DynamicDrawUsage);
 const colAttr = new THREE.BufferAttribute(colArr, 3).setUsage(THREE.DynamicDrawUsage);
 geo.setAttribute('position', posAttr);
@@ -199,25 +282,21 @@ const mat = new THREE.ShaderMaterial({
             gl_FragColor = vec4(vColor, a * 0.92);
         }
     `,
-    transparent: true,
-    vertexColors: true,
-    depthWrite:   false,
-    blending:     THREE.NormalBlending,
+    transparent: true, vertexColors: true,
+    depthWrite: false, blending: THREE.NormalBlending,
 });
-
 const points = new THREE.Points(geo, mat);
 scene.add(points);
 
-// ═══════════════════════════════
+// ════════════════════════════════════════
 //  상태 머신
-// ═══════════════════════════════
-let phase = 1;
+// ════════════════════════════════════════
+let phase         = 1;
 let transitioning = false;
 
 // Phase 1
 let satisfactionScore = 0;
 const P1_ZONE_MIN = 4.8, P1_ZONE_MAX = 5.8;
-const P1_INCR = 0.006, P1_DECR = 0.004;
 
 // Phase 2
 let touchScore = 0;
@@ -226,9 +305,20 @@ let prevMX = innerWidth/2,  prevMY = innerHeight/2;
 let mouseSpeed = 0;
 const MIN_SPD = 1.5, MAX_SPD = 8.5;
 
-// ═══════════════════════════════
+// Phase 3
+let isPhase5      = false;
+let typingScore   = 0;
+const MAX_TYPING_SCORE = 500;
+let registeredKeys = new Set();
+
+// 구체 해체
+let dissolving    = false;
+let dissolveStart = 0;
+const DISSOLVE_DUR = 1400;
+
+// ════════════════════════════════════════
 //  카메라 오빗
-// ═══════════════════════════════
+// ════════════════════════════════════════
 let tTheta = 0.3, tPhi = Math.PI * 0.46, tRadius = 8.5;
 let cTheta = tTheta, cPhi = tPhi, cRadius = tRadius;
 const MIN_R = 1.5, MAX_R = 12.0;
@@ -251,7 +341,6 @@ window.addEventListener('wheel', e => {
     tRadius = Math.max(MIN_R, Math.min(MAX_R, tRadius + e.deltaY * 0.006));
 }, { passive: true });
 
-// 터치 (핀치 줌 포함)
 let lastTouch = null, lastPinch = null;
 renderer.domElement.addEventListener('touchstart', e => {
     if (e.touches.length === 1) { isDragging = true; lastTouch = {x: e.touches[0].clientX, y: e.touches[0].clientY}; }
@@ -263,7 +352,7 @@ window.addEventListener('touchmove', e => {
         if (isDragging) {
             tTheta -= (e.touches[0].clientX - lastTouch.x) * 0.005;
             tPhi   -= (e.touches[0].clientY - lastTouch.y) * 0.005;
-            tPhi    = Math.max(0.12, Math.min(Math.PI-0.12, tPhi));
+            tPhi    = Math.max(0.12, Math.min(Math.PI - 0.12, tPhi));
         }
         lastTouch = {x: e.touches[0].clientX, y: e.touches[0].clientY};
     }
@@ -275,9 +364,9 @@ window.addEventListener('touchmove', e => {
 }, { passive: true });
 window.addEventListener('touchend', () => { isDragging = false; lastPinch = null; });
 
-// ═══════════════════════════════
+// ════════════════════════════════════════
 //  UI 요소
-// ═══════════════════════════════
+// ════════════════════════════════════════
 const guideRing  = document.getElementById('guideRing');
 const satSVG     = document.getElementById('satisfactionSVG');
 const satArc     = document.getElementById('satArc');
@@ -285,14 +374,11 @@ const feedbackUI = document.getElementById('feedbackUI');
 const hintEl     = document.getElementById('hint');
 const phaseMsgEl = document.getElementById('phaseMsg');
 
-const ARC_R = 47;
-const ARC_C = 2 * Math.PI * ARC_R;
+const ARC_C = 2 * Math.PI * 47;
 satArc.setAttribute('stroke-dasharray', ARC_C);
 satArc.setAttribute('stroke-dashoffset', ARC_C);
 
-function updateSatArc(score) {
-    satArc.setAttribute('stroke-dashoffset', ARC_C * (1 - score));
-}
+function updateSatArc(s) { satArc.setAttribute('stroke-dashoffset', ARC_C * (1 - s)); }
 
 function getSphereScreen() {
     const ctr  = new THREE.Vector3(0,0,0).project(camera);
@@ -304,9 +390,50 @@ function getSphereScreen() {
     return { cx, cy, r: Math.hypot(ex-cx, ey-cy) };
 }
 
-// ═══════════════════════════════
-//  페이즈 전환
-// ═══════════════════════════════
+// ════════════════════════════════════════
+//  Phase 3: 타이핑 진행도
+// ════════════════════════════════════════
+function updateTypingProgress() {
+    const percent = Math.floor((typingScore / MAX_TYPING_SCORE) * 100);
+    const progressEl = document.getElementById('typingProgress');
+    let barColor;
+    if (percent < 50)      barColor = 'rgba(255,160,160,0.9)';
+    else if (percent < 70) barColor = 'rgba(255,120,60,0.9)';
+    else                   barColor = 'rgba(220,50,50,0.95)';
+
+    progressEl.innerHTML = `
+        <div style="font-family:'Noto Sans KR',sans-serif;font-size:15px;font-weight:300;
+                    color:rgba(130,50,70,0.85);letter-spacing:0.12em;margin-bottom:12px;
+                    text-shadow:0 0 12px rgba(235,80,130,0.25);">온기 ${percent}%</div>
+        <div style="width:180px;height:2px;background:rgba(180,100,120,0.2);
+                    border-radius:2px;overflow:hidden;margin:0 auto;">
+            <div style="width:${percent}%;height:100%;background:${barColor};
+                        border-radius:2px;transition:width 0.1s ease,background 0.4s ease;"></div>
+        </div>`;
+
+    const wo = document.getElementById('whiteoutOverlay');
+    wo.style.opacity = typingScore >= 350 ? ((typingScore - 350) / 150).toString() : '0';
+
+    if (typingScore >= MAX_TYPING_SCORE && !isPhase5) {
+        isPhase5 = true;
+        triggerPhase5();
+    }
+}
+
+// 키보드 등록 키로 타이핑 점수
+window.addEventListener('keydown', e => {
+    const ta = document.getElementById('typingArea');
+    if (phase !== 3 || !ta || ta.style.display === 'none') return;
+    if (registeredKeys.size === 0) return;
+    if (registeredKeys.has(e.key)) {
+        typingScore = Math.min(MAX_TYPING_SCORE, typingScore + 1);
+        updateTypingProgress();
+    }
+});
+
+// ════════════════════════════════════════
+//  페이즈 전환 유틸
+// ════════════════════════════════════════
 function showMsg(text, duration, cb) {
     phaseMsgEl.textContent = text;
     phaseMsgEl.style.opacity = '1';
@@ -316,6 +443,7 @@ function showMsg(text, duration, cb) {
     }, duration);
 }
 
+// ─── Phase 1 → Phase 2 ───
 function transitionToPhase2() {
     transitioning = true;
     guideRing.style.opacity = '0';
@@ -330,22 +458,471 @@ function transitionToPhase2() {
     });
 }
 
+// ─── Phase 2 → Phase 3: 구체 해체 ───
 function transitionToPhase3() {
+    if (transitioning) return;
     transitioning = true;
     feedbackUI.style.opacity = '0';
     hintEl.style.opacity     = '0';
-    showMsg('따뜻해요', 2000);
-    // Phase 3 이후 연결 예정
+
+    // 구체 해체 시작
+    dissolving    = true;
+    dissolveStart = performance.now();
+
+    setTimeout(() => {
+        phase = 3;
+        dissolving = false;
+        onEnterPhase3();
+    }, DISSOLVE_DUR + 300);
 }
 
-// ═══════════════════════════════
-//  애니메이션 루프
-// ═══════════════════════════════
+// ─── Phase 3 진입 ───
+function onEnterPhase3() {
+    renderer.setClearColor(new THREE.Color('#fce8ef'));
+
+    const typingContainer = document.getElementById('typingContainer');
+    typingContainer.style.display = 'block';
+
+    if (!document.getElementById('typingVignette')) {
+        const v = document.createElement('div');
+        v.id = 'typingVignette';
+        document.body.appendChild(v);
+    }
+
+    const seqText = document.getElementById('sequenceText');
+    seqText.style.cssText = `
+        position:fixed; top:50%; left:50%;
+        transform:translate(-50%,-50%);
+        font-family:'Noto Sans KR',sans-serif;
+        font-size:20px; font-weight:300;
+        color:rgba(130,50,70,0.88); letter-spacing:0.1em;
+        text-align:center; line-height:1.8;
+        opacity:0; transition:opacity 1s ease;
+        pointer-events:none; z-index:500; white-space:nowrap;
+        text-shadow:0 0 18px rgba(235,80,130,0.35);
+    `;
+
+    const messages = [
+        "나의 온기를 나눠드릴게요",
+        "키보드의 돌기를 찾아주세요",
+        "따뜻해질 때까지 마구 누르고 문질러주세요"
+    ];
+    let seqIndex = 0;
+
+    function showNextMessage() {
+        if (seqIndex >= messages.length) {
+            seqText.style.opacity = '0';
+            startKeyRegistration();
+            return;
+        }
+        seqText.innerText = messages[seqIndex];
+        seqText.style.opacity = '1';
+        setTimeout(() => {
+            seqText.style.opacity = '0';
+            seqIndex++;
+            setTimeout(showNextMessage, 1200);
+        }, 3000);
+    }
+    setTimeout(showNextMessage, 500);
+}
+
+function startKeyRegistration() {
+    // 모바일: 등록 생략
+    if ('ontouchstart' in window) {
+        registeredKeys.add('__touch__');
+        startTypingPhase(null);
+        return;
+    }
+
+    const regPrompt = document.createElement('div');
+    regPrompt.style.cssText = `
+        position:fixed; top:50%; left:50%;
+        transform:translate(-50%,-50%);
+        font-family:'Noto Sans KR',sans-serif;
+        font-size:18px; font-weight:300;
+        color:rgba(130,50,70,0.88);
+        letter-spacing:0.1em; text-align:center; line-height:2.4;
+        opacity:0; transition:opacity 0.8s ease;
+        pointer-events:none; z-index:500;
+        text-shadow:0 0 14px rgba(235,80,130,0.28);
+    `;
+    regPrompt.innerHTML = `돌기가 느껴지는 키를 모두 누르고<br>엔터를 눌러주세요`;
+    document.body.appendChild(regPrompt);
+    setTimeout(() => { regPrompt.style.opacity = '1'; }, 50);
+
+    const keyDisplay = document.createElement('div');
+    keyDisplay.style.cssText = `
+        position:fixed; top:calc(50% + 80px); left:50%;
+        transform:translateX(-50%);
+        font-family:'Noto Sans KR',sans-serif;
+        font-size:22px; font-weight:300;
+        color:rgba(130,50,70,0.7); letter-spacing:0.3em;
+        text-align:center; pointer-events:none; z-index:500;
+        min-height:36px;
+        text-shadow:0 0 14px rgba(235,80,130,0.28);
+    `;
+    document.body.appendChild(keyDisplay);
+
+    const pendingKeys = new Set();
+
+    function onKeyRegister(e) {
+        if (e.key === 'Enter') {
+            if (pendingKeys.size === 0) return;
+            window.removeEventListener('keydown', onKeyRegister);
+            pendingKeys.forEach(k => registeredKeys.add(k));
+            regPrompt.style.transition = 'opacity 0.3s ease';
+            regPrompt.innerHTML = `<span style="font-size:13px;opacity:0.55;letter-spacing:0.12em;">등록됐어요</span>`;
+            keyDisplay.style.opacity = '0.4';
+            setTimeout(() => {
+                regPrompt.style.opacity = '0';
+                keyDisplay.style.opacity = '0';
+                setTimeout(() => {
+                    regPrompt.remove(); keyDisplay.remove();
+                    startTypingPhase([...pendingKeys].join('  '));
+                }, 600);
+            }, 900);
+            return;
+        }
+        const ignore = ['Shift','Control','Alt','Meta','CapsLock','Tab','Escape'];
+        if (ignore.includes(e.key)) return;
+        pendingKeys.add(e.key);
+        keyDisplay.innerText = [...pendingKeys].join('  ');
+    }
+    window.addEventListener('keydown', onKeyRegister);
+}
+
+function startTypingPhase(keyLabel) {
+    if (keyLabel) {
+        const kh = document.createElement('div');
+        kh.id = 'keyHint';
+        kh.style.cssText = `
+            position:fixed; bottom:90px; left:50%;
+            transform:translateX(-50%);
+            font-family:'Noto Sans KR',sans-serif;
+            font-size:15px; font-weight:300;
+            color:rgba(130,50,70,0.55); letter-spacing:0.3em;
+            text-align:center; white-space:nowrap;
+            opacity:0; transition:opacity 0.8s ease;
+            pointer-events:none; z-index:200;
+            text-shadow:0 0 14px rgba(235,80,130,0.28);
+        `;
+        kh.innerText = keyLabel;
+        document.body.appendChild(kh);
+        setTimeout(() => { kh.style.opacity = '1'; }, 50);
+    }
+    const ta = document.getElementById('typingArea');
+    ta.style.display = 'block';
+    document.getElementById('typingProgress').style.display = 'block';
+    setTimeout(() => ta.focus(), 50);
+    updateTypingProgress();
+}
+
+// ════════════════════════════════════════
+//  Phase 5: 웹캠 / 얼굴 인식
+// ════════════════════════════════════════
+function triggerPhase5() {
+    setTimeout(() => {
+        const p5 = document.getElementById('phase5Container');
+        p5.style.display = 'block';
+        setTimeout(() => { p5.style.opacity = '1'; }, 50);
+
+        const cameraIntro = document.createElement('div');
+        cameraIntro.id = 'cameraIntro';
+        cameraIntro.style.cssText = `
+            position:absolute; inset:0;
+            display:flex; flex-direction:column;
+            align-items:center; justify-content:center; gap:24px; z-index:10;
+        `;
+        cameraIntro.innerHTML = `
+            <p style="font-family:'Noto Sans KR',sans-serif;font-size:17px;font-weight:300;
+                      color:rgba(130,50,70,0.88);letter-spacing:0.08em;
+                      text-align:center;line-height:1.9;margin:0;
+                      text-shadow:0 0 14px rgba(235,80,130,0.28);">이제 카메라를 사용할게요</p>
+            <p style="font-family:'Noto Sans KR',sans-serif;font-size:13px;font-weight:300;
+                      color:rgba(130,50,70,0.55);letter-spacing:0.18em;
+                      text-align:center;margin:0;
+                      text-shadow:0 0 14px rgba(235,80,130,0.22);">당신의 온기도 나눠줘요</p>
+            <button id="startCameraBtn" style="
+                padding:11px 34px;border-radius:999px;
+                border:1px solid rgba(160,80,100,0.35);
+                background:transparent; color:rgba(130,50,70,0.88);
+                font-family:'Noto Sans KR',sans-serif;font-size:13px;font-weight:300;
+                letter-spacing:0.08em;cursor:pointer;transition:background 0.2s ease;">시작하기</button>
+        `;
+        p5.appendChild(cameraIntro);
+
+        document.getElementById('startCameraBtn').addEventListener('click', () => {
+            cameraIntro.style.transition = 'opacity 0.5s ease';
+            cameraIntro.style.opacity = '0';
+            setTimeout(() => cameraIntro.remove(), 500);
+            startWebcam(p5);
+        });
+    }, 2000);
+}
+
+function startWebcam(p5) {
+    const videoEl  = document.getElementById('webcam');
+    const proxText = document.getElementById('proximityText');
+    videoEl.style.cssText = `
+        position:absolute;inset:0;width:100%;height:100%;
+        object-fit:cover;transform:scaleX(-1);display:block;
+    `;
+    proxText.style.cssText = `
+        display:block;position:absolute;top:50%;left:50%;
+        transform:translate(-50%,-50%);
+        font-family:'Noto Sans KR',sans-serif;font-size:0.9rem;font-weight:300;
+        color:rgba(255,255,255,0.9);letter-spacing:0.12em;
+        text-align:center;white-space:nowrap;pointer-events:none;
+        z-index:20;transition:opacity 0.4s ease;
+        text-shadow:0 0 16px rgba(235,80,130,0.4);
+    `;
+
+    let noFaceFrames = 0;
+    const NO_FACE_THRESHOLD = 30;
+
+    const svgNS = 'http://www.w3.org/2000/svg';
+    const csz = 56, rad = 22;
+    const circ = 2 * Math.PI * rad;
+    const svgEl = document.createElementNS(svgNS, 'svg');
+    svgEl.setAttribute('width', csz); svgEl.setAttribute('height', csz);
+    svgEl.style.cssText = `
+        position:absolute;top:calc(50% + 52px);left:50%;
+        transform:translateX(-50%);opacity:0;transition:opacity 0.5s ease;z-index:25;
+    `;
+    const bgC = document.createElementNS(svgNS, 'circle');
+    bgC.setAttribute('cx',csz/2); bgC.setAttribute('cy',csz/2); bgC.setAttribute('r',rad);
+    bgC.setAttribute('fill','none'); bgC.setAttribute('stroke','rgba(255,255,255,0.18)'); bgC.setAttribute('stroke-width','1.5');
+    const fgC = document.createElementNS(svgNS, 'circle');
+    fgC.setAttribute('cx',csz/2); fgC.setAttribute('cy',csz/2); fgC.setAttribute('r',rad);
+    fgC.setAttribute('fill','none'); fgC.setAttribute('stroke','rgba(255,255,255,0.75)'); fgC.setAttribute('stroke-width','1.5');
+    fgC.setAttribute('stroke-dasharray',circ); fgC.setAttribute('stroke-dashoffset',circ);
+    fgC.setAttribute('stroke-linecap','round');
+    fgC.setAttribute('transform',`rotate(-90 ${csz/2} ${csz/2})`);
+    svgEl.appendChild(bgC); svgEl.appendChild(fgC);
+    p5.appendChild(svgEl);
+
+    let cdStart = null, cdActive = false, cdDone = false;
+    const CD_DUR = 5000;
+
+    function resetCD() { cdActive=false; cdStart=null; svgEl.style.opacity='0'; fgC.setAttribute('stroke-dashoffset',circ); }
+
+    function onResults(results) {
+        if (cdDone) return;
+        let maxFR = 0;
+        if (results.detections && results.detections.length > 0) {
+            noFaceFrames = 0;
+            for (const d of results.detections) if (d.boundingBox.width > maxFR) maxFR = d.boundingBox.width;
+        } else { noFaceFrames++; }
+
+        if (noFaceFrames > NO_FACE_THRESHOLD) {
+            proxText.innerText = '얼굴이 보이지 않아요';
+            proxText.style.opacity = '0.5'; proxText.style.fontSize = '1.0rem';
+            resetCD(); return;
+        }
+
+        proxText.style.opacity = '1';
+        let stageText, fontSize;
+        if      (maxFR < 0.25) { stageText='나와 눈을 맞춰줘요'; fontSize=2.4; }
+        else if (maxFR < 0.42) { stageText='나에게도 온기를 나눠줄 수 있어요?'; fontSize=1.8; }
+        else if (maxFR < 0.58) { stageText='가까이 다가와요'; fontSize=1.3; }
+        else if (maxFR < 0.62) { stageText='더 가까이'; fontSize=0.95; }
+        else                   { stageText='당신은 발광하지 않지만 따뜻해요'; fontSize=0.7; }
+        proxText.innerText = stageText; proxText.style.fontSize = `${fontSize}rem`;
+
+        if (maxFR >= 0.62) {
+            if (!cdActive) { cdActive=true; cdStart=performance.now(); svgEl.style.opacity='1'; }
+            const prog = Math.min((performance.now()-cdStart)/CD_DUR, 1.0);
+            fgC.setAttribute('stroke-dashoffset', circ*(1-prog));
+            if (prog >= 1.0) { cdDone=true; triggerFinalPage(); }
+        } else {
+            if (cdActive) resetCD();
+        }
+    }
+
+    try {
+        const fd = new FaceDetection({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/${f}` });
+        fd.setOptions({ model:'short', minDetectionConfidence:0.5 });
+        fd.onResults(onResults);
+        const cam = new Camera(videoEl, { onFrame: async () => { await fd.send({ image: videoEl }); }, width:1280, height:720 });
+        cam.start();
+    } catch(err) {
+        proxText.innerText = '카메라를 사용할 수 없어요'; proxText.style.opacity = '0.7';
+    }
+}
+
+// ════════════════════════════════════════
+//  Phase 6: 안아줘요 + 하트
+// ════════════════════════════════════════
+function triggerFinalPage() {
+    const p5 = document.getElementById('phase5Container');
+    p5.style.transition = 'opacity 1.2s ease';
+    p5.style.opacity = '0';
+
+    setTimeout(() => {
+        p5.style.display = 'none';
+
+        const finalPage = document.createElement('div');
+        finalPage.id = 'finalPage';
+        finalPage.style.cssText = `
+            position:fixed;inset:0;background:#fce8ef;z-index:600;
+            display:flex;align-items:center;justify-content:center;overflow:hidden;
+        `;
+        const finalText = document.createElement('p');
+        finalText.innerText = '나를 두 팔로 안아줘요';
+        finalText.style.cssText = `
+            font-family:'Noto Sans KR',sans-serif;
+            font-size:clamp(18px,2.2vw,28px);font-weight:300;
+            color:rgba(130,50,70,0.88);
+            text-shadow:0 0 14px rgba(235,80,130,0.28);
+            letter-spacing:0.18em;
+            animation:blinkText 1.6s ease-in-out infinite;
+            position:relative;z-index:2;pointer-events:none;
+        `;
+        finalPage.appendChild(finalText);
+        document.body.appendChild(finalPage);
+
+        const heartContainer = document.createElement('div');
+        heartContainer.id = 'heartContainer';
+        heartContainer.style.cssText = `position:fixed;inset:0;z-index:601;pointer-events:none;overflow:hidden;`;
+        document.body.appendChild(heartContainer);
+
+        const offCanvas = document.createElement('canvas');
+        offCanvas.width = 64; offCanvas.height = 36;
+        const offCtx = offCanvas.getContext('2d');
+        const videoEl = document.getElementById('webcam');
+
+        let darkFrames = 0, hugged = false, huggingRafId = null;
+        let soundFrames = 0, soundBlinkTimer = null;
+        const DARK_THRESHOLD = 45, DARK_FRAMES_NEEDED = 150, SOUND_FRAMES_NEEDED = 240;
+
+        function triggerSoundBlink(el) {
+            if (soundBlinkTimer) return;
+            el.style.transition = 'color 0.1s ease,filter 0.1s ease';
+            el.style.color = 'rgba(200,40,60,0.9)';
+            el.style.filter = 'blur(3px)';
+            soundBlinkTimer = setTimeout(() => {
+                el.style.color = 'rgba(130,50,70,0.88)';
+                el.style.filter = 'none';
+                soundBlinkTimer = setTimeout(() => { soundBlinkTimer = null; }, 180);
+            }, 160);
+        }
+
+        function startMicDetection() {
+            navigator.mediaDevices.getUserMedia({ audio:true, video:false })
+                .then(stream => {
+                    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    const src = audioCtx.createMediaStreamSource(stream);
+                    const analyser = audioCtx.createAnalyser();
+                    analyser.fftSize = 256;
+                    src.connect(analyser);
+                    const data = new Uint8Array(analyser.frequencyBinCount);
+                    function checkSound() {
+                        if (hugged) return;
+                        analyser.getByteFrequencyData(data);
+                        let sum = 0;
+                        for (let i = 0; i < data.length; i++) sum += data[i]*data[i];
+                        const rms = Math.sqrt(sum / data.length);
+                        if (rms > 18) {
+                            soundFrames++;
+                            triggerSoundBlink(finalText);
+                            if (soundFrames >= SOUND_FRAMES_NEEDED && !hugged) {
+                                hugged = true;
+                                cancelAnimationFrame(huggingRafId);
+                                triggerHugComplete(finalPage, heartContainer, finalText);
+                                return;
+                            }
+                        } else { soundFrames = Math.max(0, soundFrames - 2); }
+                        requestAnimationFrame(checkSound);
+                    }
+                    checkSound();
+                }).catch(() => {});
+        }
+
+        function checkLuminance() {
+            if (!videoEl || videoEl.readyState < 2) { huggingRafId = requestAnimationFrame(checkLuminance); return; }
+            offCtx.drawImage(videoEl, 0, 0, 64, 36);
+            const imgData = offCtx.getImageData(0, 0, 64, 36).data;
+            let sum = 0;
+            for (let i = 0; i < imgData.length; i += 4)
+                sum += 0.299*imgData[i] + 0.587*imgData[i+1] + 0.114*imgData[i+2];
+            const avg = sum / (imgData.length / 4);
+            if (avg < DARK_THRESHOLD) darkFrames++;
+            else darkFrames = Math.max(0, darkFrames - 3);
+            finalText.style.opacity = String(1 - Math.min(darkFrames/DARK_FRAMES_NEEDED, 1) * 0.7);
+            if (darkFrames >= DARK_FRAMES_NEEDED && !hugged) {
+                hugged = true;
+                cancelAnimationFrame(huggingRafId);
+                triggerHugComplete(finalPage, heartContainer, finalText);
+                return;
+            }
+            huggingRafId = requestAnimationFrame(checkLuminance);
+        }
+
+        setTimeout(() => { huggingRafId = requestAnimationFrame(checkLuminance); startMicDetection(); }, 800);
+    }, 1200);
+}
+
+function triggerHugComplete(finalPage, heartContainer, finalText) {
+    finalText.style.animation = 'none';
+    finalText.style.opacity = '0';
+    finalPage.style.transition = 'background 1.5s ease';
+    finalPage.style.background = '#fce8ef';
+    burstHearts(20);
+    const iv = setInterval(() => burstHearts(6), 600);
+    setTimeout(() => clearInterval(iv), 5000);
+    setTimeout(() => {
+        const endMsg = document.createElement('p');
+        endMsg.innerText = '따뜻해요. 당신과 같은 온도가 될 수 있어 좋아요';
+        endMsg.style.cssText = `
+            font-family:'Noto Sans KR',sans-serif;
+            font-size:clamp(16px,2vw,24px);font-weight:300;
+            color:rgba(180,80,100,0.85);letter-spacing:0.2em;
+            position:relative;z-index:2;
+            animation:fadeInUp 1.2s ease forwards;opacity:0;
+        `;
+        finalPage.appendChild(endMsg);
+    }, 1800);
+}
+
+function burstHearts(count = 12) {
+    const hc = document.getElementById('heartContainer');
+    if (!hc) return;
+    const hearts = ['🩷','💗','💕','💞','💓','🫀'];
+    for (let i = 0; i < count; i++) {
+        setTimeout(() => {
+            const el = document.createElement('div');
+            el.innerText = hearts[Math.floor(Math.random() * hearts.length)];
+            const size = 18 + Math.random() * 28;
+            const startX = 10 + Math.random() * 80;
+            const drift = (Math.random() - 0.5) * 120;
+            const dur = 2.2 + Math.random() * 2;
+            const delay = Math.random() * 0.5;
+            el.style.cssText = `
+                position:absolute;bottom:-60px;left:${startX}vw;
+                font-size:${size}px;opacity:0;
+                animation:heartFloat ${dur}s ${delay}s ease-out forwards;
+                --drift:${drift}px;
+            `;
+            hc.appendChild(el);
+            setTimeout(() => el.remove(), (dur + delay + 0.2) * 1000);
+        }, i * 80);
+    }
+}
+
+// ════════════════════════════════════════
+//  메인 애니메이션 루프
+// ════════════════════════════════════════
 const clock = new THREE.Clock();
 
 function animate() {
     requestAnimationFrame(animate);
     const t = clock.getElapsedTime();
+
+    // Phase 3+ 에서는 3D 렌더만 유지하고 로직 건너뜀
+    if (phase >= 3) {
+        renderer.render(scene, camera);
+        return;
+    }
 
     // 카메라 보간
     cTheta  += (tTheta  - cTheta)  * 0.055;
@@ -358,21 +935,36 @@ function animate() {
     );
     camera.lookAt(0, 0, 0);
 
+    // ── 구체 해체 애니메이션 ──
+    if (dissolving) {
+        const prog = Math.min((performance.now() - dissolveStart) / DISSOLVE_DUR, 1);
+        const eased = prog * prog; // ease-in
+        for (let i = 0; i < N; i++) {
+            const ox = origPos[i*3], oy = origPos[i*3+1], oz = origPos[i*3+2];
+            posArr[i*3]   = ox + dissolveV[i*3]   * eased * 5;
+            posArr[i*3+1] = oy + dissolveV[i*3+1] * eased * 5;
+            posArr[i*3+2] = oz + dissolveV[i*3+2] * eased * 5;
+            const fade = 1 - eased;
+            colArr[i*3]   = colBase[i*3]   * fade;
+            colArr[i*3+1] = colBase[i*3+1] * fade;
+            colArr[i*3+2] = colBase[i*3+2] * fade;
+        }
+        posAttr.needsUpdate = true;
+        colAttr.needsUpdate = true;
+        renderer.render(scene, camera);
+        return;
+    }
+
     // ── Phase 1 ──
     if (phase === 1 && !transitioning) {
         const inZone = cRadius >= P1_ZONE_MIN && cRadius <= P1_ZONE_MAX;
-
-        if (inZone) satisfactionScore = Math.min(1, satisfactionScore + P1_INCR);
-        else        satisfactionScore = Math.max(0, satisfactionScore - P1_DECR);
+        if (inZone) satisfactionScore = Math.min(1, satisfactionScore + 0.006);
+        else        satisfactionScore = Math.max(0, satisfactionScore - 0.004);
 
         satSVG.style.opacity = satisfactionScore > 0.02 ? '1' : '0';
         guideRing.classList.toggle('inZone', inZone);
         updateSatArc(satisfactionScore);
-
-        hintEl.textContent = !inZone
-            ? (cRadius > P1_ZONE_MAX ? '조금 더 가까이' : '조금 더 멀리')
-            : '';
-
+        hintEl.textContent = !inZone ? (cRadius > P1_ZONE_MAX ? '조금 더 가까이' : '조금 더 멀리') : '';
         if (satisfactionScore >= 1) transitionToPhase2();
     }
 
@@ -386,18 +978,17 @@ function animate() {
         const onSphere = Math.hypot(mouseX-cx, mouseY-cy) < r * 1.15 && !isDragging;
         const goodSpeed = mouseSpeed >= MIN_SPD && mouseSpeed <= MAX_SPD;
 
-        if (onSphere && goodSpeed)            touchScore = Math.min(1, touchScore + 1/800);
+        if (onSphere && goodSpeed)               touchScore = Math.min(1, touchScore + 1/800);
         else if (onSphere && mouseSpeed > MAX_SPD) touchScore = Math.max(0, touchScore - 0.005);
-        else                                   touchScore = Math.max(0, touchScore - 0.003);
+        else                                     touchScore = Math.max(0, touchScore - 0.003);
 
         const tempNow = (34 + touchScore * 2.5).toFixed(2);
-        if (!onSphere)                              feedbackUI.textContent = '';
-        else if (mouseSpeed > MAX_SPD)              feedbackUI.textContent = '너무 빠르게요...';
+        if (!onSphere)                                   feedbackUI.textContent = '';
+        else if (mouseSpeed > MAX_SPD)                   feedbackUI.textContent = '너무 빠르게요...';
         else if (mouseSpeed < MIN_SPD && mouseSpeed > 0.2) feedbackUI.textContent = '좀 더 쓸어봐요';
-        else if (touchScore >= 0.99)                feedbackUI.textContent = `${tempNow}°C  완벽해요...`;
-        else                                        feedbackUI.textContent = `${tempNow}°C`;
+        else if (touchScore >= 0.99)                     feedbackUI.textContent = `${tempNow}°C  완벽해요...`;
+        else                                             feedbackUI.textContent = `${tempNow}°C`;
 
-        // 파티클 온기 색 반영
         for (let i = 0; i < N; i++) {
             const w = touchScore * 0.25;
             colArr[i*3]   = Math.min(1, colBase[i*3]   + w * 0.20);
@@ -406,11 +997,9 @@ function animate() {
         }
         colAttr.needsUpdate = true;
 
-        // 배경 흰 → #fce8ef
         renderer.setClearColor(new THREE.Color(
             `rgb(${Math.round(255-3*touchScore)},${Math.round(255-40*touchScore)},${Math.round(255-28*touchScore)})`
         ));
-
         if (touchScore > 0.05) hintEl.style.opacity = '0';
         if (touchScore >= 1 && !transitioning) transitionToPhase3();
     }
@@ -425,8 +1014,8 @@ function animate() {
         posArr[i*3+2] = oz * b;
     }
     posAttr.needsUpdate = true;
-
     points.rotation.y += 0.0007;
+
     renderer.render(scene, camera);
 }
 

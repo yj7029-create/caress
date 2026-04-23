@@ -3,15 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Caress</title>
-
-    <!-- Mobile redirect -->
-    <script>
-        if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
-            window.location.replace('mobile.html');
-        }
-    </script>
-
+    <title>Caress 3D</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { overflow: hidden; cursor: grab; }
@@ -142,8 +134,8 @@ const golden = Math.PI * (3 - Math.sqrt(5));
 
 const origPos  = new Float32Array(N * 3);
 const posArr   = new Float32Array(N * 3);
-const colBase  = new Float32Array(N * 3);
-const colArr   = new Float32Array(N * 3);
+const colBase  = new Float32Array(N * 3);  // 원래 색
+const colArr   = new Float32Array(N * 3);  // 실시간 색
 const sizeArr  = new Float32Array(N);
 
 for (let i = 0; i < N; i++) {
@@ -172,8 +164,8 @@ for (let i = 0; i < N; i++) {
 }
 
 const geo = new THREE.BufferGeometry();
-const posAttr = new THREE.BufferAttribute(posArr, 3).setUsage(THREE.DynamicDrawUsage);
-const colAttr = new THREE.BufferAttribute(colArr, 3).setUsage(THREE.DynamicDrawUsage);
+const posAttr  = new THREE.BufferAttribute(posArr,  3).setUsage(THREE.DynamicDrawUsage);
+const colAttr  = new THREE.BufferAttribute(colArr,  3).setUsage(THREE.DynamicDrawUsage);
 geo.setAttribute('position', posAttr);
 geo.setAttribute('color',    colAttr);
 geo.setAttribute('size',     new THREE.BufferAttribute(sizeArr, 1));
@@ -278,29 +270,32 @@ window.addEventListener('touchend', () => { isDragging = false; lastPinch = null
 // ═══════════════════════════════
 //  UI 요소
 // ═══════════════════════════════
-const guideRing  = document.getElementById('guideRing');
-const satSVG     = document.getElementById('satisfactionSVG');
-const satArc     = document.getElementById('satArc');
-const feedbackUI = document.getElementById('feedbackUI');
-const hintEl     = document.getElementById('hint');
-const phaseMsgEl = document.getElementById('phaseMsg');
+const guideRing      = document.getElementById('guideRing');
+const satSVG         = document.getElementById('satisfactionSVG');
+const satArc         = document.getElementById('satArc');
+const feedbackUI     = document.getElementById('feedbackUI');
+const hintEl         = document.getElementById('hint');
+const phaseMsgEl     = document.getElementById('phaseMsg');
 
+// 아크 둘레
 const ARC_R = 47;
 const ARC_C = 2 * Math.PI * ARC_R;
 satArc.setAttribute('stroke-dasharray', ARC_C);
 satArc.setAttribute('stroke-dashoffset', ARC_C);
 
 function updateSatArc(score) {
-    satArc.setAttribute('stroke-dashoffset', ARC_C * (1 - score));
+    const offset = ARC_C * (1 - score);
+    satArc.setAttribute('stroke-dashoffset', offset);
 }
 
+// 구의 스크린-스페이스 투영 반경
 function getSphereScreen() {
-    const ctr  = new THREE.Vector3(0,0,0).project(camera);
-    const edge = new THREE.Vector3(SPHERE_R,0,0).project(camera);
-    const cx = (ctr.x  + 1) * innerWidth  / 2;
+    const ctr = new THREE.Vector3(0, 0, 0).project(camera);
+    const edge = new THREE.Vector3(SPHERE_R, 0, 0).project(camera);
+    const cx = (ctr.x + 1) * innerWidth  / 2;
     const cy = (-ctr.y + 1) * innerHeight / 2;
     const ex = (edge.x + 1) * innerWidth  / 2;
-    const ey = (-edge.y+ 1) * innerHeight / 2;
+    const ey = (-edge.y + 1) * innerHeight / 2;
     return { cx, cy, r: Math.hypot(ex-cx, ey-cy) };
 }
 
@@ -318,13 +313,15 @@ function showMsg(text, duration, cb) {
 
 function transitionToPhase2() {
     transitioning = true;
+    // 유도 링 페이드 아웃
     guideRing.style.opacity = '0';
     satSVG.style.opacity    = '0';
     hintEl.style.opacity    = '0';
+
     showMsg('좋아요', 1200, () => {
         phase = 2;
         transitioning = false;
-        hintEl.textContent   = '천천히 쓰다듬어요';
+        hintEl.textContent = '천천히 쓰다듬어요';
         hintEl.style.opacity = '1';
         feedbackUI.style.opacity = '1';
     });
@@ -335,7 +332,7 @@ function transitionToPhase3() {
     feedbackUI.style.opacity = '0';
     hintEl.style.opacity     = '0';
     showMsg('따뜻해요', 2000);
-    // Phase 3 이후 연결 예정
+    // (이후 Phase 3 연결 예정)
 }
 
 // ═══════════════════════════════
@@ -358,46 +355,55 @@ function animate() {
     );
     camera.lookAt(0, 0, 0);
 
-    // ── Phase 1 ──
+    // ── Phase 1 로직 ──
     if (phase === 1 && !transitioning) {
         const inZone = cRadius >= P1_ZONE_MIN && cRadius <= P1_ZONE_MAX;
 
         if (inZone) satisfactionScore = Math.min(1, satisfactionScore + P1_INCR);
         else        satisfactionScore = Math.max(0, satisfactionScore - P1_DECR);
 
+        // 유도 링
         satSVG.style.opacity = satisfactionScore > 0.02 ? '1' : '0';
         guideRing.classList.toggle('inZone', inZone);
         updateSatArc(satisfactionScore);
 
-        hintEl.textContent = !inZone
-            ? (cRadius > P1_ZONE_MAX ? '조금 더 가까이' : '조금 더 멀리')
-            : '';
+        // 힌트 텍스트
+        if (!inZone) {
+            hintEl.textContent = cRadius > P1_ZONE_MAX ? '조금 더 가까이' : '조금 더 멀리';
+        } else {
+            hintEl.textContent = '';
+        }
 
         if (satisfactionScore >= 1) transitionToPhase2();
     }
 
-    // ── Phase 2 ──
+    // ── Phase 2 로직 ──
     if (phase === 2 && !transitioning) {
+        // 마우스 속도
         const spd = Math.hypot(mouseX - prevMX, mouseY - prevMY);
         mouseSpeed += (spd - mouseSpeed) * 0.1;
         prevMX = mouseX; prevMY = mouseY;
 
+        // 구 위에 마우스 있는지 (스크린 스페이스)
         const { cx, cy, r } = getSphereScreen();
-        const onSphere = Math.hypot(mouseX-cx, mouseY-cy) < r * 1.15 && !isDragging;
+        const onSphere = Math.hypot(mouseX - cx, mouseY - cy) < r * 1.15 && !isDragging;
+
         const goodSpeed = mouseSpeed >= MIN_SPD && mouseSpeed <= MAX_SPD;
 
-        if (onSphere && goodSpeed)            touchScore = Math.min(1, touchScore + 1/800);
+        if (onSphere && goodSpeed)       touchScore = Math.min(1, touchScore + 1/800);
         else if (onSphere && mouseSpeed > MAX_SPD) touchScore = Math.max(0, touchScore - 0.005);
-        else                                   touchScore = Math.max(0, touchScore - 0.003);
+        else                             touchScore = Math.max(0, touchScore - 0.003);
 
+        // 온도 표시
         const tempNow = (34 + touchScore * 2.5).toFixed(2);
-        if (!onSphere)                              feedbackUI.textContent = '';
-        else if (mouseSpeed > MAX_SPD)              feedbackUI.textContent = '너무 빠르게요...';
-        else if (mouseSpeed < MIN_SPD && mouseSpeed > 0.2) feedbackUI.textContent = '좀 더 쓸어봐요';
-        else if (touchScore >= 0.99)                feedbackUI.textContent = `${tempNow}°C  완벽해요...`;
-        else                                        feedbackUI.textContent = `${tempNow}°C`;
+        let fbText = `${tempNow}°C`;
+        if (!onSphere)                    fbText = '';
+        else if (mouseSpeed > MAX_SPD)    fbText = `너무 빠르게요...`;
+        else if (mouseSpeed < MIN_SPD && mouseSpeed > 0.2) fbText = `좀 더 쓸어봐요`;
+        else if (touchScore >= 0.99)      fbText = `${tempNow}°C  완벽해요...`;
+        feedbackUI.textContent = fbText;
 
-        // 파티클 온기 색 반영
+        // 파티클 색 온기 반영
         for (let i = 0; i < N; i++) {
             const w = touchScore * 0.25;
             colArr[i*3]   = Math.min(1, colBase[i*3]   + w * 0.20);
@@ -407,26 +413,31 @@ function animate() {
         colAttr.needsUpdate = true;
 
         // 배경 흰 → #fce8ef
-        renderer.setClearColor(new THREE.Color(
-            `rgb(${Math.round(255-3*touchScore)},${Math.round(255-40*touchScore)},${Math.round(255-28*touchScore)})`
-        ));
+        const bg_r = Math.round(255 - 3  * touchScore);
+        const bg_g = Math.round(255 - 40 * touchScore);
+        const bg_b = Math.round(255 - 28 * touchScore);
+        renderer.setClearColor(new THREE.Color(`rgb(${bg_r},${bg_g},${bg_b})`));
 
+        // 힌트 숨김
         if (touchScore > 0.05) hintEl.style.opacity = '0';
+
         if (touchScore >= 1 && !transitioning) transitionToPhase3();
     }
 
     // ── 파티클 호흡 ──
     for (let i = 0; i < N; i++) {
         const ox = origPos[i*3], oy = origPos[i*3+1], oz = origPos[i*3+2];
-        const p  = t * 0.6 + i * 0.031;
-        const b  = 1.0 + Math.sin(p) * 0.032 + Math.sin(p * 2.1) * 0.012;
-        posArr[i*3]   = ox * b;
-        posArr[i*3+1] = oy * b;
-        posArr[i*3+2] = oz * b;
+        const phase_p = t * 0.6 + i * 0.031;
+        const breathe = 1.0 + Math.sin(phase_p) * 0.032 + Math.sin(phase_p * 2.1) * 0.012;
+        posArr[i*3]   = ox * breathe;
+        posArr[i*3+1] = oy * breathe;
+        posArr[i*3+2] = oz * breathe;
     }
     posAttr.needsUpdate = true;
 
+    // 자전
     points.rotation.y += 0.0007;
+
     renderer.render(scene, camera);
 }
 

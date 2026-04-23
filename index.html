@@ -472,14 +472,14 @@ function transitionToPhase3() {
     setTimeout(() => {
         phase = 3;
         dissolving = false;
+        points.visible = false;
+        renderer.setClearColor(new THREE.Color('#fce8ef'));
         onEnterPhase3();
     }, DISSOLVE_DUR + 300);
 }
 
 // ─── Phase 3 진입 ───
 function onEnterPhase3() {
-    renderer.setClearColor(new THREE.Color('#fce8ef'));
-
     const typingContainer = document.getElementById('typingContainer');
     typingContainer.style.display = 'block';
 

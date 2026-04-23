@@ -984,8 +984,8 @@ function animate() {
 
         const tempNow = (34 + touchScore * 2.5).toFixed(2);
         if (!onSphere)                                   feedbackUI.textContent = '';
-        else if (mouseSpeed > MAX_SPD)                   feedbackUI.textContent = '너무 빠르게요...';
-        else if (mouseSpeed < MIN_SPD && mouseSpeed > 0.2) feedbackUI.textContent = '좀 더 쓸어봐요';
+        else if (mouseSpeed > MAX_SPD)                   feedbackUI.textContent = '너무 빨라요.. 좀 더 천천히';
+        else if (mouseSpeed < MIN_SPD && mouseSpeed > 0.2) feedbackUI.textContent = '멈추지 말고 계속 쓰다듬어 줘요..';
         else if (touchScore >= 0.99)                     feedbackUI.textContent = `${tempNow}°C  완벽해요...`;
         else                                             feedbackUI.textContent = `${tempNow}°C`;
 

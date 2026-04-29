@@ -307,27 +307,6 @@ function initAudio() {
     const nd = noiseBuffer.getChannelData(0);
     for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
 
-    // ── Phase 2 스트로크 노이즈 (항상 실행, 볼륨만 제어) ──
-    const strokeSrc = audioCtx.createBufferSource();
-    strokeSrc.buffer = noiseBuffer;
-    strokeSrc.loop = true;
-    const strokeBpf = audioCtx.createBiquadFilter();
-    strokeBpf.type = 'bandpass';
-    strokeBpf.frequency.value = 1600;
-    strokeBpf.Q.value = 0.7;
-    const strokeBpf2 = audioCtx.createBiquadFilter();
-    strokeBpf2.type = 'bandpass';
-    strokeBpf2.frequency.value = 3200;
-    strokeBpf2.Q.value = 1.2;
-    strokeGainNode = audioCtx.createGain();
-    strokeGainNode.gain.value = 0;
-    strokeSrc.connect(strokeBpf);
-    strokeSrc.connect(strokeBpf2);
-    strokeBpf.connect(strokeGainNode);
-    strokeBpf2.connect(strokeGainNode);
-    strokeGainNode.connect(audioCtx.destination);
-    strokeSrc.start();
-
     // ── Phase 4 속삭임 노이즈 (항상 실행, 볼륨만 제어) ──
     const whisperSrc = audioCtx.createBufferSource();
     whisperSrc.buffer = noiseBuffer;
@@ -357,27 +336,50 @@ function initAudio() {
     window.addEventListener(ev, initAudio, { once: true, passive: true })
 );
 
-// Phase 1 — 도르륵 짧은 치프
-let _p1ChirpTimer = 0;
-function playChirp() {
+// Phase 1 — 맑고 청아한 크리스탈 벨
+let _p1BellTimer = 0;
+function playBell() {
     if (!audioCtx) return;
     const now = performance.now();
-    if (now - _p1ChirpTimer < 160) return;
-    _p1ChirpTimer = now;
+    if (now - _p1BellTimer < 260) return;
+    _p1BellTimer = now;
     const t = audioCtx.currentTime;
-    const osc = audioCtx.createOscillator();
-    const g   = audioCtx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(380, t);
-    osc.frequency.exponentialRampToValueAtTime(620, t + 0.055);
-    osc.frequency.exponentialRampToValueAtTime(380, t + 0.11);
-    g.gain.setValueAtTime(0.10, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.13);
-    osc.connect(g); g.connect(audioCtx.destination);
-    osc.start(t); osc.stop(t + 0.14);
+
+    // 기본음 + 5도음 + 옥타브 살짝 detuned → 크리스탈 울림
+    const baseFreq = 880 + Math.random() * 220; // A5~B5 근처 랜덤
+    [[1, 0.13], [1.498, 0.06], [2.003, 0.04]].forEach(([ratio, vol]) => {
+        const osc = audioCtx.createOscillator();
+        const g   = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = baseFreq * ratio + (Math.random() - 0.5) * 3;
+        g.gain.setValueAtTime(0.0, t);
+        g.gain.linearRampToValueAtTime(vol, t + 0.006);   // 빠른 어택
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.9); // 긴 서스테인
+        osc.connect(g); g.connect(audioCtx.destination);
+        osc.start(t); osc.stop(t + 1.0);
+    });
 }
 
-// Phase 2 — 스트로크 볼륨 조절
+// Phase 2 — 스트로크 노이즈 (Phase 2 진입 시 생성)
+let _strokeInited = false;
+function initStrokeNoise() {
+    if (_strokeInited || !audioCtx || !noiseBuffer) return;
+    _strokeInited = true;
+    const strokeSrc = audioCtx.createBufferSource();
+    strokeSrc.buffer = noiseBuffer;
+    strokeSrc.loop = true;
+    const bpf1 = audioCtx.createBiquadFilter();
+    bpf1.type = 'bandpass'; bpf1.frequency.value = 1600; bpf1.Q.value = 0.7;
+    const bpf2 = audioCtx.createBiquadFilter();
+    bpf2.type = 'bandpass'; bpf2.frequency.value = 3200; bpf2.Q.value = 1.2;
+    strokeGainNode = audioCtx.createGain();
+    strokeGainNode.gain.value = 0;
+    strokeSrc.connect(bpf1); strokeSrc.connect(bpf2);
+    bpf1.connect(strokeGainNode); bpf2.connect(strokeGainNode);
+    strokeGainNode.connect(audioCtx.destination);
+    strokeSrc.start();
+}
+
 function setStrokeVol(v) {
     if (!strokeGainNode) return;
     strokeGainNode.gain.setTargetAtTime(v * 0.28, audioCtx.currentTime, 0.04);
@@ -612,6 +614,7 @@ function transitionToPhase2() {
     showMsg('좋아요', 1200, () => {
         phase = 2;
         transitioning = false;
+        initStrokeNoise(); // Phase 2 진입 시점에만 노이즈 소스 생성
         hintEl.textContent   = '천천히 쓰다듬어요';
         hintEl.style.opacity = '1';
         feedbackUI.style.opacity = '1';
@@ -1134,7 +1137,7 @@ function animate() {
         guideRing.classList.toggle('inZone', inZone);
         updateSatArc(satisfactionScore);
         hintEl.textContent = !inZone ? (cRadius > P1_ZONE_MAX ? '조금 더 가까이' : '조금 더 멀리') : '';
-        if (inZone && satisfactionScore < 1) playChirp(); // 도르륵
+        if (inZone && satisfactionScore < 1) playBell(); // 크리스탈 벨
         if (satisfactionScore >= 1) transitionToPhase2();
     }
 

@@ -307,28 +307,25 @@ function initAudio() {
     const nd = noiseBuffer.getChannelData(0);
     for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
 
-    // ── Phase 4 속삭임 노이즈 (항상 실행, 볼륨만 제어) ──
-    const whisperSrc = audioCtx.createBufferSource();
-    whisperSrc.buffer = noiseBuffer;
-    whisperSrc.loop = true;
+}
+
+// Phase 4 속삭임 노이즈 — startWebcam() 호출 시점에만 초기화
+let _whisperInited = false;
+function initWhisperNoise() {
+    if (_whisperInited || !audioCtx || !noiseBuffer) return;
+    _whisperInited = true;
+    const src = audioCtx.createBufferSource();
+    src.buffer = noiseBuffer;
+    src.loop = true;
     const wf1 = audioCtx.createBiquadFilter(); wf1.type='bandpass'; wf1.frequency.value=550;  wf1.Q.value=4;
     const wf2 = audioCtx.createBiquadFilter(); wf2.type='bandpass'; wf2.frequency.value=1400; wf2.Q.value=3;
     const wf3 = audioCtx.createBiquadFilter(); wf3.type='bandpass'; wf3.frequency.value=2600; wf3.Q.value=2;
-    const whisperMix = audioCtx.createGain(); whisperMix.gain.value = 1;
-    whisperMuteGain = audioCtx.createGain(); whisperMuteGain.gain.value = 0;
-    whisperSrc.connect(wf1); whisperSrc.connect(wf2); whisperSrc.connect(wf3);
-    wf1.connect(whisperMix); wf2.connect(whisperMix); wf3.connect(whisperMix);
-    whisperMix.connect(whisperMuteGain);
+    whisperMuteGain = audioCtx.createGain();
+    whisperMuteGain.gain.value = 0; // 명시적으로 0에서 시작, LFO 없음
+    src.connect(wf1); src.connect(wf2); src.connect(wf3);
+    wf1.connect(whisperMuteGain); wf2.connect(whisperMuteGain); wf3.connect(whisperMuteGain);
     whisperMuteGain.connect(audioCtx.destination);
-    // 천천히 숨쉬듯 진폭 진동하는 LFO
-    const wLfo = audioCtx.createOscillator();
-    const wLfoGain = audioCtx.createGain();
-    wLfo.frequency.value = 0.35;
-    wLfoGain.gain.value = 0.12;
-    wLfo.connect(wLfoGain);
-    wLfoGain.connect(whisperMuteGain.gain);
-    wLfo.start();
-    whisperSrc.start();
+    src.start();
 }
 
 // 첫 사용자 인터랙션에서 AudioContext 초기화
@@ -409,8 +406,7 @@ function playBoing() {
 // Phase 4 — 속삭임 볼륨 조절 (얼굴 거리 기반)
 function setWhisperVol(v) {
     if (!whisperMuteGain) return;
-    // base value + LFO 합산되므로 base는 목표값 - LFO_depth
-    whisperMuteGain.gain.setTargetAtTime(Math.max(0, v * 0.22 - 0.05), audioCtx.currentTime, 0.25);
+    whisperMuteGain.gain.setTargetAtTime(v * 0.22, audioCtx.currentTime, 0.3);
 }
 
 // Phase 5 — 또오오오잉 빌드업 오실레이터 시작
@@ -824,6 +820,7 @@ function triggerPhase5() {
 }
 
 function startWebcam(p5) {
+    initWhisperNoise(); // Phase 4 진입 시점에만 노이즈 소스 생성
     const videoEl  = document.getElementById('webcam');
     const proxText = document.getElementById('proximityText');
     videoEl.style.cssText = `

@@ -289,6 +289,165 @@ const points = new THREE.Points(geo, mat);
 scene.add(points);
 
 // ════════════════════════════════════════
+//  오디오 시스템 (Web Audio API 합성)
+// ════════════════════════════════════════
+let audioCtx = null;
+let noiseBuffer = null;
+let strokeGainNode = null;
+let whisperMuteGain = null;
+let p5BuildOscs = [];
+
+function initAudio() {
+    if (audioCtx) return;
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    // 화이트 노이즈 버퍼 (2초 루프용)
+    const sr = audioCtx.sampleRate;
+    noiseBuffer = audioCtx.createBuffer(1, sr * 2, sr);
+    const nd = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+
+    // ── Phase 2 스트로크 노이즈 (항상 실행, 볼륨만 제어) ──
+    const strokeSrc = audioCtx.createBufferSource();
+    strokeSrc.buffer = noiseBuffer;
+    strokeSrc.loop = true;
+    const strokeBpf = audioCtx.createBiquadFilter();
+    strokeBpf.type = 'bandpass';
+    strokeBpf.frequency.value = 1600;
+    strokeBpf.Q.value = 0.7;
+    const strokeBpf2 = audioCtx.createBiquadFilter();
+    strokeBpf2.type = 'bandpass';
+    strokeBpf2.frequency.value = 3200;
+    strokeBpf2.Q.value = 1.2;
+    strokeGainNode = audioCtx.createGain();
+    strokeGainNode.gain.value = 0;
+    strokeSrc.connect(strokeBpf);
+    strokeSrc.connect(strokeBpf2);
+    strokeBpf.connect(strokeGainNode);
+    strokeBpf2.connect(strokeGainNode);
+    strokeGainNode.connect(audioCtx.destination);
+    strokeSrc.start();
+
+    // ── Phase 4 속삭임 노이즈 (항상 실행, 볼륨만 제어) ──
+    const whisperSrc = audioCtx.createBufferSource();
+    whisperSrc.buffer = noiseBuffer;
+    whisperSrc.loop = true;
+    const wf1 = audioCtx.createBiquadFilter(); wf1.type='bandpass'; wf1.frequency.value=550;  wf1.Q.value=4;
+    const wf2 = audioCtx.createBiquadFilter(); wf2.type='bandpass'; wf2.frequency.value=1400; wf2.Q.value=3;
+    const wf3 = audioCtx.createBiquadFilter(); wf3.type='bandpass'; wf3.frequency.value=2600; wf3.Q.value=2;
+    const whisperMix = audioCtx.createGain(); whisperMix.gain.value = 1;
+    whisperMuteGain = audioCtx.createGain(); whisperMuteGain.gain.value = 0;
+    whisperSrc.connect(wf1); whisperSrc.connect(wf2); whisperSrc.connect(wf3);
+    wf1.connect(whisperMix); wf2.connect(whisperMix); wf3.connect(whisperMix);
+    whisperMix.connect(whisperMuteGain);
+    whisperMuteGain.connect(audioCtx.destination);
+    // 천천히 숨쉬듯 진폭 진동하는 LFO
+    const wLfo = audioCtx.createOscillator();
+    const wLfoGain = audioCtx.createGain();
+    wLfo.frequency.value = 0.35;
+    wLfoGain.gain.value = 0.12;
+    wLfo.connect(wLfoGain);
+    wLfoGain.connect(whisperMuteGain.gain);
+    wLfo.start();
+    whisperSrc.start();
+}
+
+// 첫 사용자 인터랙션에서 AudioContext 초기화
+['mousedown','touchstart','keydown','wheel'].forEach(ev =>
+    window.addEventListener(ev, initAudio, { once: true, passive: true })
+);
+
+// Phase 1 — 도르륵 짧은 치프
+let _p1ChirpTimer = 0;
+function playChirp() {
+    if (!audioCtx) return;
+    const now = performance.now();
+    if (now - _p1ChirpTimer < 160) return;
+    _p1ChirpTimer = now;
+    const t = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const g   = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(380, t);
+    osc.frequency.exponentialRampToValueAtTime(620, t + 0.055);
+    osc.frequency.exponentialRampToValueAtTime(380, t + 0.11);
+    g.gain.setValueAtTime(0.10, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.13);
+    osc.connect(g); g.connect(audioCtx.destination);
+    osc.start(t); osc.stop(t + 0.14);
+}
+
+// Phase 2 — 스트로크 볼륨 조절
+function setStrokeVol(v) {
+    if (!strokeGainNode) return;
+    strokeGainNode.gain.setTargetAtTime(v * 0.28, audioCtx.currentTime, 0.04);
+}
+
+// Phase 3 — 도잉도잉 (키 누를 때마다)
+let _p3BoingTimer = 0;
+function playBoing() {
+    if (!audioCtx) return;
+    const now = performance.now();
+    if (now - _p3BoingTimer < 75) return;
+    _p3BoingTimer = now;
+    const t = audioCtx.currentTime;
+    const freq = 280 + Math.random() * 240;
+    const osc  = audioCtx.createOscillator();
+    const g    = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq * 2.2, t);
+    osc.frequency.exponentialRampToValueAtTime(freq, t + 0.22);
+    osc.frequency.exponentialRampToValueAtTime(freq * 0.72, t + 0.45);
+    g.gain.setValueAtTime(0.16, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.48);
+    osc.connect(g); g.connect(audioCtx.destination);
+    osc.start(t); osc.stop(t + 0.5);
+}
+
+// Phase 4 — 속삭임 볼륨 조절 (얼굴 거리 기반)
+function setWhisperVol(v) {
+    if (!whisperMuteGain) return;
+    // base value + LFO 합산되므로 base는 목표값 - LFO_depth
+    whisperMuteGain.gain.setTargetAtTime(Math.max(0, v * 0.22 - 0.05), audioCtx.currentTime, 0.25);
+}
+
+// Phase 5 — 또오오오잉 빌드업 오실레이터 시작
+function startBuildUp() {
+    if (!audioCtx || p5BuildOscs.length) return;
+    const freqs = [55, 110, 165, 220];
+    freqs.forEach((f, i) => {
+        const osc = audioCtx.createOscillator();
+        const g   = audioCtx.createGain();
+        osc.type = i === 0 ? 'sawtooth' : 'sine';
+        osc.frequency.setValueAtTime(f, audioCtx.currentTime);
+        g.gain.setValueAtTime(0.001, audioCtx.currentTime);
+        g.gain.linearRampToValueAtTime(0.07 - i * 0.012, audioCtx.currentTime + 6);
+        osc.connect(g); g.connect(audioCtx.destination);
+        osc.start();
+        p5BuildOscs.push({ osc, g, baseFreq: f });
+    });
+}
+
+function updateBuildUp(progress) { // 0~1
+    if (!audioCtx || !p5BuildOscs.length) return;
+    const t = audioCtx.currentTime;
+    p5BuildOscs.forEach(({ osc, baseFreq }, i) => {
+        const target = baseFreq * (1 + progress * 3.5);
+        osc.frequency.setTargetAtTime(target, t, 0.6);
+    });
+}
+
+function stopBuildUp() {
+    if (!audioCtx) return;
+    const t = audioCtx.currentTime;
+    p5BuildOscs.forEach(({ osc, g }) => {
+        g.gain.setTargetAtTime(0.001, t, 0.4);
+        osc.stop(t + 2.5);
+    });
+    p5BuildOscs = [];
+}
+
+// ════════════════════════════════════════
 //  상태 머신
 // ════════════════════════════════════════
 let phase         = 1;
@@ -428,6 +587,7 @@ window.addEventListener('keydown', e => {
     if (registeredKeys.has(e.key)) {
         typingScore = Math.min(MAX_TYPING_SCORE, typingScore + 1);
         updateTypingProgress();
+        playBoing();
     }
 });
 
@@ -717,6 +877,7 @@ function startWebcam(p5) {
         if (noFaceFrames > NO_FACE_THRESHOLD) {
             proxText.innerText = '얼굴이 보이지 않아요';
             proxText.style.opacity = '0.5'; proxText.style.fontSize = '1.0rem';
+            setWhisperVol(0);
             resetCD(); return;
         }
 
@@ -728,6 +889,9 @@ function startWebcam(p5) {
         else if (maxFR < 0.62) { stageText='더 가까이'; fontSize=0.95; }
         else                   { stageText='당신은 발광하지 않지만 따뜻해요'; fontSize=0.7; }
         proxText.innerText = stageText; proxText.style.fontSize = `${fontSize}rem`;
+
+        // 얼굴이 가까울수록 속삭임 커짐 (0.1 ~ 1.0 범위)
+        setWhisperVol(Math.min(1, Math.max(0, (maxFR - 0.1) / 0.55)));
 
         if (maxFR >= 0.62) {
             if (!cdActive) { cdActive=true; cdStart=performance.now(); svgEl.style.opacity='1'; }
@@ -760,6 +924,8 @@ function triggerFinalPage() {
 
     setTimeout(() => {
         p5.style.display = 'none';
+        setWhisperVol(0);
+        startBuildUp();
 
         const finalPage = document.createElement('div');
         finalPage.id = 'finalPage';
@@ -848,9 +1014,12 @@ function triggerFinalPage() {
             const avg = sum / (imgData.length / 4);
             if (avg < DARK_THRESHOLD) darkFrames++;
             else darkFrames = Math.max(0, darkFrames - 3);
-            finalText.style.opacity = String(1 - Math.min(darkFrames/DARK_FRAMES_NEEDED, 1) * 0.7);
+            const lumProg = Math.min(darkFrames / DARK_FRAMES_NEEDED, 1);
+            finalText.style.opacity = String(1 - lumProg * 0.7);
+            updateBuildUp(lumProg);
             if (darkFrames >= DARK_FRAMES_NEEDED && !hugged) {
                 hugged = true;
+                stopBuildUp();
                 cancelAnimationFrame(huggingRafId);
                 triggerHugComplete(finalPage, heartContainer, finalText);
                 return;
@@ -965,6 +1134,7 @@ function animate() {
         guideRing.classList.toggle('inZone', inZone);
         updateSatArc(satisfactionScore);
         hintEl.textContent = !inZone ? (cRadius > P1_ZONE_MAX ? '조금 더 가까이' : '조금 더 멀리') : '';
+        if (inZone && satisfactionScore < 1) playChirp(); // 도르륵
         if (satisfactionScore >= 1) transitionToPhase2();
     }
 
@@ -981,6 +1151,10 @@ function animate() {
         if (onSphere && goodSpeed)               touchScore = Math.min(1, touchScore + 1/800);
         else if (onSphere && mouseSpeed > MAX_SPD) touchScore = Math.max(0, touchScore - 0.005);
         else                                     touchScore = Math.max(0, touchScore - 0.003);
+
+        // 스윽 소리: 구체 위에서 적절한 속도로 쓰다듬을 때
+        const strokeVol = (onSphere && goodSpeed) ? Math.min(1, (mouseSpeed - MIN_SPD) / (MAX_SPD - MIN_SPD)) : 0;
+        setStrokeVol(strokeVol);
 
         const tempNow = (34 + touchScore * 2.5).toFixed(2);
         if (!onSphere)                                   feedbackUI.textContent = '';

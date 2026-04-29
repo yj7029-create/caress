@@ -635,6 +635,9 @@ function transitionToPhase3() {
     transitioning = true;
     feedbackUI.style.opacity = '0';
     hintEl.style.opacity     = '0';
+    // 스윽 소리 천천히 페이드아웃 (구체 해체 duration에 맞춰)
+    if (strokeGainNode && audioCtx)
+        strokeGainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.7);
 
     // 구체 해체 시작
     dissolving    = true;

@@ -333,27 +333,38 @@ function initWhisperNoise() {
     window.addEventListener(ev, initAudio, { once: true, passive: true })
 );
 
-// Phase 1 — 맑고 청아한 크리스탈 벨
-let _p1BellTimer = 0;
-function playBell() {
-    if (!audioCtx) return;
-    const now = performance.now();
-    if (now - _p1BellTimer < 260) return;
-    _p1BellTimer = now;
-    const t = audioCtx.currentTime;
+// Phase 1 — 게이지 연동 크리스탈 톤
+// 3개 사인파 (기본음 · 완전5도 · 옥타브) gain=0으로 대기 → updateCrystalTone 에서 제어
+let crystalOscs = null;
 
-    // 기본음 + 5도음 + 옥타브 살짝 detuned → 크리스탈 울림
-    const baseFreq = 880 + Math.random() * 220; // A5~B5 근처 랜덤
-    [[1, 0.13], [1.498, 0.06], [2.003, 0.04]].forEach(([ratio, vol]) => {
+function initCrystalOscs() {
+    if (crystalOscs || !audioCtx) return;
+    crystalOscs = [
+        { ratio: 1,     maxVol: 0.10 },
+        { ratio: 1.501, maxVol: 0.055 }, // 완전5도 (×1.5)
+        { ratio: 2.004, maxVol: 0.035 }, // 옥타브 + 미세 detuned
+    ].map(({ ratio, maxVol }) => {
         const osc = audioCtx.createOscillator();
         const g   = audioCtx.createGain();
         osc.type = 'sine';
-        osc.frequency.value = baseFreq * ratio + (Math.random() - 0.5) * 3;
-        g.gain.setValueAtTime(0.0, t);
-        g.gain.linearRampToValueAtTime(vol, t + 0.006);   // 빠른 어택
-        g.gain.exponentialRampToValueAtTime(0.001, t + 0.9); // 긴 서스테인
+        osc.frequency.value = 440;
+        g.gain.value = 0;
         osc.connect(g); g.connect(audioCtx.destination);
-        osc.start(t); osc.stop(t + 1.0);
+        osc.start();
+        return { osc, g, ratio, maxVol };
+    });
+}
+
+// score: 0~1, inZone: bool
+function updateCrystalTone(score, inZone) {
+    if (!audioCtx) return;
+    initCrystalOscs();
+    const t = audioCtx.currentTime;
+    // 400Hz(score=0) → 1200Hz(score=1): 지수 커브로 자연스럽게
+    const base = 400 * Math.pow(3, score);
+    crystalOscs.forEach(({ osc, g, ratio, maxVol }) => {
+        osc.frequency.setTargetAtTime(base * ratio, t, 0.12);
+        g.gain.setTargetAtTime(inZone ? maxVol : 0, t, inZone ? 0.25 : 0.4);
     });
 }
 
@@ -608,6 +619,7 @@ function transitionToPhase2() {
     satSVG.style.opacity    = '0';
     hintEl.style.opacity    = '0';
     showMsg('좋아요', 1200, () => {
+        updateCrystalTone(0, false); // 크리스탈 톤 페이드아웃
         phase = 2;
         transitioning = false;
         initStrokeNoise(); // Phase 2 진입 시점에만 노이즈 소스 생성
@@ -1134,7 +1146,7 @@ function animate() {
         guideRing.classList.toggle('inZone', inZone);
         updateSatArc(satisfactionScore);
         hintEl.textContent = !inZone ? (cRadius > P1_ZONE_MAX ? '조금 더 가까이' : '조금 더 멀리') : '';
-        if (inZone && satisfactionScore < 1) playBell(); // 크리스탈 벨
+        updateCrystalTone(satisfactionScore, inZone);
         if (satisfactionScore >= 1) transitionToPhase2();
     }
 

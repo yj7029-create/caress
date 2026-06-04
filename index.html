@@ -1065,7 +1065,107 @@ function triggerHugComplete(finalPage, heartContainer, finalText) {
             animation:fadeInUp 1.2s ease forwards;opacity:0;
         `;
         finalPage.appendChild(endMsg);
+        // 메시지 충분히 읽은 뒤 귀 대기 페이즈로
+        setTimeout(() => triggerEarPhase(finalPage, heartContainer), 5000);
     }, 1800);
+}
+
+// ════════════════════════════════════════
+//  귀 대기 페이즈 — 베이스 진동
+// ════════════════════════════════════════
+let bassOscs = [];
+
+function startBassVibration() {
+    if (!audioCtx || bassOscs.length) return;
+    const t = audioCtx.currentTime;
+    // 50Hz + 47Hz → 3Hz 비팅으로 살아있는 느낌
+    [[50, 0.42], [47, 0.28]].forEach(([freq, maxVol]) => {
+        const osc = audioCtx.createOscillator();
+        const g   = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        g.gain.setValueAtTime(0, t);
+        g.gain.linearRampToValueAtTime(maxVol, t + 3.5); // 천천히 올라옴
+        osc.connect(g); g.connect(audioCtx.destination);
+        osc.start();
+        bassOscs.push({ osc, g });
+    });
+}
+
+function stopBassVibration(fadeDur = 3.0) {
+    if (!audioCtx) return;
+    const t = audioCtx.currentTime;
+    bassOscs.forEach(({ osc, g }) => {
+        g.gain.setTargetAtTime(0, t, fadeDur / 3);
+        osc.stop(t + fadeDur + 1);
+    });
+    bassOscs = [];
+}
+
+function triggerEarPhase(finalPage, heartContainer) {
+    // 기존 페이지 천천히 페이드아웃
+    finalPage.style.transition = 'opacity 2s ease';
+    finalPage.style.opacity = '0';
+    if (heartContainer) heartContainer.style.opacity = '0';
+
+    setTimeout(() => {
+        finalPage.remove();
+        if (heartContainer) heartContainer.remove();
+
+        const earPage = document.createElement('div');
+        earPage.style.cssText = `
+            position:fixed;inset:0;background:#ede0e8;z-index:700;
+            display:flex;flex-direction:column;align-items:center;
+            justify-content:center;gap:32px;
+            opacity:0;transition:opacity 2s ease;
+        `;
+        document.body.appendChild(earPage);
+        setTimeout(() => { earPage.style.opacity = '1'; }, 50);
+
+        // 베이스 진동 시작
+        startBassVibration();
+
+        // 텍스트 시퀀스
+        const txt = document.createElement('p');
+        txt.style.cssText = `
+            font-family:'Noto Sans KR',sans-serif;
+            font-size:clamp(14px,1.6vw,20px);font-weight:300;
+            color:rgba(110,50,80,0.75);letter-spacing:0.18em;
+            text-align:center;line-height:2;
+            opacity:0;transition:opacity 1.4s ease;
+            pointer-events:none;
+        `;
+        earPage.appendChild(txt);
+
+        const seq = [
+            { text: '소리가 들리나요',         delay: 1500 },
+            { text: '귀를 스피커에 가져다 대요', delay: 5000 },
+            { text: '느껴지나요',               delay: 10000 },
+        ];
+
+        seq.forEach(({ text, delay }) => {
+            setTimeout(() => {
+                txt.style.opacity = '0';
+                setTimeout(() => {
+                    txt.innerText = text;
+                    txt.style.opacity = '1';
+                }, 800);
+            }, delay);
+        });
+
+        // 16초 뒤 베이스 페이드아웃 + 마지막 메시지
+        setTimeout(() => {
+            stopBassVibration(3.5);
+            txt.style.transition = 'opacity 2s ease';
+            txt.style.opacity = '0';
+            setTimeout(() => {
+                txt.innerText = '여기 있었어요';
+                txt.style.fontSize = 'clamp(13px,1.3vw,17px)';
+                txt.style.color = 'rgba(110,50,80,0.45)';
+                txt.style.opacity = '1';
+            }, 2500);
+        }, 16000);
+    }, 2200);
 }
 
 function burstHearts(count = 12) {

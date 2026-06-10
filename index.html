@@ -460,12 +460,58 @@ function stopBuildUp() {
 //  보이스 재생 (MP3 파일 기반)
 // ════════════════════════════════════════
 // 파일이 없으면 조용히 무시 — 파일 추가할수록 자동으로 작동
+// 리버브용 임펄스 응답 (한 번만 생성)
+let _reverbConvolver = null;
+function getVoiceReverb() {
+    if (_reverbConvolver) return _reverbConvolver;
+    if (!audioCtx) return null;
+    const dur = 1.6, sr = audioCtx.sampleRate;
+    const ir = audioCtx.createBuffer(2, sr * dur, sr);
+    for (let ch = 0; ch < 2; ch++) {
+        const d = ir.getChannelData(ch);
+        for (let i = 0; i < d.length; i++) {
+            // 지수 감쇠 노이즈 — 어두운 방 울림
+            d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2.8);
+        }
+    }
+    _reverbConvolver = audioCtx.createConvolver();
+    _reverbConvolver.buffer = ir;
+    // 리버브 출력에 로우패스 필터 → 따뜻하고 어두운 울림
+    const lpf = audioCtx.createBiquadFilter();
+    lpf.type = 'lowpass';
+    lpf.frequency.value = 3200;
+    _reverbConvolver.connect(lpf);
+    lpf.connect(audioCtx.destination);
+    return _reverbConvolver;
+}
+
 function playVoice(filename, volume = 0.85) {
-    // 공백 + 특수문자 제거해서 파일명 정규화
+    if (!audioCtx) return;
     const clean = filename.replace(/[\s?!.,。·\-]/g, '');
-    const audio = new Audio(`./${encodeURIComponent(clean)}.mp3`);
-    audio.volume = volume;
-    audio.play().catch(() => {}); // 파일 없으면 에러 무시
+    const url = `./${encodeURIComponent(clean)}.mp3`;
+
+    fetch(url)
+        .then(r => { if (!r.ok) throw new Error(); return r.arrayBuffer(); })
+        .then(buf => audioCtx.decodeAudioData(buf))
+        .then(decoded => {
+            const src = audioCtx.createBufferSource();
+            src.buffer = decoded;
+
+            // dry (직접음)
+            const dryGain = audioCtx.createGain();
+            dryGain.gain.value = volume;
+            src.connect(dryGain);
+            dryGain.connect(audioCtx.destination);
+
+            // wet (리버브)
+            const wetGain = audioCtx.createGain();
+            wetGain.gain.value = volume * 0.42;
+            const reverb = getVoiceReverb();
+            if (reverb) { src.connect(wetGain); wetGain.connect(reverb); }
+
+            src.start();
+        })
+        .catch(() => {}); // 파일 없으면 조용히 무시
 }
 
 // ════════════════════════════════════════
@@ -1181,8 +1227,8 @@ function triggerEarPhase(finalPage, heartContainer) {
             txt.style.transition = 'opacity 2s ease';
             txt.style.opacity = '0';
             setTimeout(() => {
-                txt.innerText = '여기 있었어요';
-                playVoice('여기있었어요');
+                txt.innerText = '온 몸으로 나를 느껴줘요';
+                playVoice('온 몸으로 나를 느껴줘요');
                 txt.style.fontSize = 'clamp(13px,1.3vw,17px)';
                 txt.style.color = 'rgba(110,50,80,0.45)';
                 txt.style.opacity = '1';

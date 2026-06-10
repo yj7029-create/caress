@@ -368,29 +368,45 @@ function updateCrystalTone(score, inZone) {
     });
 }
 
-// Phase 2 — 스트로크 노이즈 (Phase 2 진입 시 생성)
+// Phase 2 — 오잉~오잉~ 소프트 진동음 (Phase 2 진입 시 생성)
 let _strokeInited = false;
 function initStrokeNoise() {
-    if (_strokeInited || !audioCtx || !noiseBuffer) return;
+    if (_strokeInited || !audioCtx) return;
     _strokeInited = true;
-    const strokeSrc = audioCtx.createBufferSource();
-    strokeSrc.buffer = noiseBuffer;
-    strokeSrc.loop = true;
-    const bpf1 = audioCtx.createBiquadFilter();
-    bpf1.type = 'bandpass'; bpf1.frequency.value = 1600; bpf1.Q.value = 0.7;
-    const bpf2 = audioCtx.createBiquadFilter();
-    bpf2.type = 'bandpass'; bpf2.frequency.value = 3200; bpf2.Q.value = 1.2;
+
+    // 메인 사인파 2개 (미세 디튜닝 → 느린 비팅)
+    const osc1 = audioCtx.createOscillator();
+    const osc2 = audioCtx.createOscillator();
+    osc1.type = 'sine'; osc1.frequency.value = 210;
+    osc2.type = 'sine'; osc2.frequency.value = 214;
+
+    // 피치 LFO → 오잉~오잉~ 흔들림
+    const lfo = audioCtx.createOscillator();
+    const lfoDepth = audioCtx.createGain();
+    lfo.type = 'sine';
+    lfo.frequency.value = 2.8;   // 초당 ~3번 흔들림
+    lfoDepth.gain.value = 38;    // ±38Hz 피치 변조 폭
+    lfo.connect(lfoDepth);
+    lfoDepth.connect(osc1.frequency);
+    lfoDepth.connect(osc2.frequency);
+
+    // 부드러운 로우패스 → 날카로움 제거
+    const lpf = audioCtx.createBiquadFilter();
+    lpf.type = 'lowpass'; lpf.frequency.value = 600; lpf.Q.value = 0.8;
+
     strokeGainNode = audioCtx.createGain();
     strokeGainNode.gain.value = 0;
-    strokeSrc.connect(bpf1); strokeSrc.connect(bpf2);
-    bpf1.connect(strokeGainNode); bpf2.connect(strokeGainNode);
+
+    osc1.connect(lpf); osc2.connect(lpf);
+    lpf.connect(strokeGainNode);
     strokeGainNode.connect(audioCtx.destination);
-    strokeSrc.start();
+
+    osc1.start(); osc2.start(); lfo.start();
 }
 
 function setStrokeVol(v) {
     if (!strokeGainNode) return;
-    strokeGainNode.gain.setTargetAtTime(v * 0.28, audioCtx.currentTime, 0.04);
+    strokeGainNode.gain.setTargetAtTime(v * 0.18, audioCtx.currentTime, 0.06);
 }
 
 // Phase 3 — 도잉도잉 (키 누를 때마다)

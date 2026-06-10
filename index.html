@@ -457,6 +457,18 @@ function stopBuildUp() {
 }
 
 // ════════════════════════════════════════
+//  보이스 재생 (MP3 파일 기반)
+// ════════════════════════════════════════
+// 파일이 없으면 조용히 무시 — 파일 추가할수록 자동으로 작동
+function playVoice(filename, volume = 0.85) {
+    // 공백 + 특수문자 제거해서 파일명 정규화
+    const clean = filename.replace(/[\s?!.,。·\-]/g, '');
+    const audio = new Audio(`./${encodeURIComponent(clean)}.mp3`);
+    audio.volume = volume;
+    audio.play().catch(() => {}); // 파일 없으면 에러 무시
+}
+
+// ════════════════════════════════════════
 //  상태 머신
 // ════════════════════════════════════════
 let phase         = 1;
@@ -618,6 +630,7 @@ function transitionToPhase2() {
     guideRing.style.opacity = '0';
     satSVG.style.opacity    = '0';
     hintEl.style.opacity    = '0';
+    playVoice('좋아요');
     showMsg('좋아요', 1200, () => {
         updateCrystalTone(0, false); // 크리스탈 톤 페이드아웃
         phase = 2;
@@ -691,6 +704,7 @@ function onEnterPhase3() {
         }
         seqText.innerText = messages[seqIndex];
         seqText.style.opacity = '1';
+        playVoice(messages[seqIndex]);
         setTimeout(() => {
             seqText.style.opacity = '0';
             seqIndex++;
@@ -722,7 +736,10 @@ function startKeyRegistration() {
     `;
     regPrompt.innerHTML = `돌기가 느껴지는 키를 모두 누르고<br>엔터를 눌러주세요`;
     document.body.appendChild(regPrompt);
-    setTimeout(() => { regPrompt.style.opacity = '1'; }, 50);
+    setTimeout(() => {
+        regPrompt.style.opacity = '1';
+        playVoice('돌기가 느껴지는 키를 모두 누르고 엔터를 눌러주세요');
+    }, 50);
 
     const keyDisplay = document.createElement('div');
     keyDisplay.style.cssText = `
@@ -824,6 +841,7 @@ function triggerPhase5() {
                 letter-spacing:0.08em;cursor:pointer;transition:background 0.2s ease;">시작하기</button>
         `;
         p5.appendChild(cameraIntro);
+        playVoice('이제 카메라를 사용할게요');
 
         document.getElementById('startCameraBtn').addEventListener('click', () => {
             cameraIntro.style.transition = 'opacity 0.5s ease';
@@ -903,6 +921,7 @@ function startWebcam(p5) {
         else if (maxFR < 0.58) { stageText='가까이 다가와요'; fontSize=1.3; }
         else if (maxFR < 0.62) { stageText='더 가까이'; fontSize=0.95; }
         else                   { stageText='당신은 발광하지 않지만 따뜻해요'; fontSize=0.7; }
+        if (proxText.innerText !== stageText) playVoice(stageText);
         proxText.innerText = stageText; proxText.style.fontSize = `${fontSize}rem`;
 
         // 얼굴이 가까울수록 속삭임 커짐 (0.1 ~ 1.0 범위)
@@ -950,6 +969,7 @@ function triggerFinalPage() {
         `;
         const finalText = document.createElement('p');
         finalText.innerText = '나를 두 팔로 안아줘요';
+        playVoice('나를 두 팔로 안아줘요');
         finalText.style.cssText = `
             font-family:'Noto Sans KR',sans-serif;
             font-size:clamp(18px,2.2vw,28px);font-weight:300;
@@ -1057,6 +1077,7 @@ function triggerHugComplete(finalPage, heartContainer, finalText) {
     setTimeout(() => {
         const endMsg = document.createElement('p');
         endMsg.innerText = '따뜻해요. 당신과 같은 온도가 될 수 있어 좋아요';
+        playVoice('따뜻해요당신과같은온도가될수있어좋아요');
         endMsg.style.cssText = `
             font-family:'Noto Sans KR',sans-serif;
             font-size:clamp(16px,2vw,24px);font-weight:300;
@@ -1149,6 +1170,7 @@ function triggerEarPhase(finalPage, heartContainer) {
                 setTimeout(() => {
                     txt.innerText = text;
                     txt.style.opacity = '1';
+                    playVoice(text);
                 }, 800);
             }, delay);
         });
@@ -1160,6 +1182,7 @@ function triggerEarPhase(finalPage, heartContainer) {
             txt.style.opacity = '0';
             setTimeout(() => {
                 txt.innerText = '여기 있었어요';
+                playVoice('여기있었어요');
                 txt.style.fontSize = 'clamp(13px,1.3vw,17px)';
                 txt.style.color = 'rgba(110,50,80,0.45)';
                 txt.style.opacity = '1';

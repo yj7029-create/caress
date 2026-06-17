@@ -1219,23 +1219,27 @@ function triggerEarPhase(finalPage, heartContainer) {
         `;
         document.body.appendChild(tiltBar);
 
-        // ── DeviceOrientation 기울기 → 베이스 볼륨 ──
-        // 초기 램프(3.5s) 완료 후 활성화
-        let baseBeta = null;
-        let tiltHandler = null;
+        // ── WebSocket → 뚜껑 각도 → 베이스 볼륨 ──
+        // lid_ws.py 가 실행 중이면 자동 연결됨
+        let baseAngle = null;
+        let lidWS = null;
 
-        if (window.DeviceOrientationEvent) {
-            setTimeout(() => {
-                tiltBar.style.opacity = '1';
-                tiltHandler = (e) => {
-                    if (e.beta === null) return;
-                    if (baseBeta === null) { baseBeta = e.beta; return; }
+        setTimeout(() => {
+            try {
+                lidWS = new WebSocket('ws://localhost:8765');
 
-                    // 기준점에서 기울어진 정도 (어느 방향이든)
-                    const delta = Math.abs(e.beta - baseBeta);
-                    const tilt  = Math.min(delta / 28, 1); // 28도 = 최대
+                lidWS.onopen = () => {
+                    tiltBar.style.opacity = '1';
+                };
 
-                    // 베이스 볼륨 조절: 기본 → 최대 1.8배까지
+                lidWS.onmessage = (e) => {
+                    const { angle } = JSON.parse(e.data);
+                    if (baseAngle === null) { baseAngle = angle; return; }
+
+                    // 뚜껑을 더 열수록(화면 뒤로 젖힐수록) 각도 증가 → 베이스 강해짐
+                    const delta = angle - baseAngle;
+                    const tilt  = Math.min(Math.max(delta / 30, 0), 1); // 30도 = 최대
+
                     if (bassOscs.length && audioCtx) {
                         bassOscs.forEach(({ g }, i) => {
                             const base = i === 0 ? 0.42 : 0.28;
@@ -1243,16 +1247,16 @@ function triggerEarPhase(finalPage, heartContainer) {
                         });
                     }
 
-                    // 시각 피드백 바
                     tiltBar.style.width = `${tilt * 80}%`;
                 };
-                window.addEventListener('deviceorientation', tiltHandler);
-            }, 4000);
-        }
 
-        // 페이즈 종료 시 리스너 정리
+                lidWS.onerror = () => { tiltBar.style.opacity = '0'; };
+            } catch(err) { /* WebSocket 없으면 조용히 무시 */ }
+        }, 4000);
+
+        // 페이즈 종료 시 정리
         setTimeout(() => {
-            if (tiltHandler) window.removeEventListener('deviceorientation', tiltHandler);
+            if (lidWS) { lidWS.close(); lidWS = null; }
             tiltBar.remove();
         }, 19000);
 

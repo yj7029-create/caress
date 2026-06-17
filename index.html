@@ -1208,6 +1208,54 @@ function triggerEarPhase(finalPage, heartContainer) {
         // 베이스 진동 시작
         startBassVibration();
 
+        // ── 기울기 시각 피드백 바 (하단) ──
+        const tiltBar = document.createElement('div');
+        tiltBar.style.cssText = `
+            position:fixed;bottom:0;left:50%;transform:translateX(-50%);
+            width:0%;height:2px;
+            background:rgba(160,80,120,0.5);
+            transition:width 0.4s ease, opacity 0.8s ease;
+            pointer-events:none;z-index:800;opacity:0;
+        `;
+        document.body.appendChild(tiltBar);
+
+        // ── DeviceOrientation 기울기 → 베이스 볼륨 ──
+        // 초기 램프(3.5s) 완료 후 활성화
+        let baseBeta = null;
+        let tiltHandler = null;
+
+        if (window.DeviceOrientationEvent) {
+            setTimeout(() => {
+                tiltBar.style.opacity = '1';
+                tiltHandler = (e) => {
+                    if (e.beta === null) return;
+                    if (baseBeta === null) { baseBeta = e.beta; return; }
+
+                    // 기준점에서 기울어진 정도 (어느 방향이든)
+                    const delta = Math.abs(e.beta - baseBeta);
+                    const tilt  = Math.min(delta / 28, 1); // 28도 = 최대
+
+                    // 베이스 볼륨 조절: 기본 → 최대 1.8배까지
+                    if (bassOscs.length && audioCtx) {
+                        bassOscs.forEach(({ g }, i) => {
+                            const base = i === 0 ? 0.42 : 0.28;
+                            g.gain.setTargetAtTime(base * (1 + tilt * 0.9), audioCtx.currentTime, 0.3);
+                        });
+                    }
+
+                    // 시각 피드백 바
+                    tiltBar.style.width = `${tilt * 80}%`;
+                };
+                window.addEventListener('deviceorientation', tiltHandler);
+            }, 4000);
+        }
+
+        // 페이즈 종료 시 리스너 정리
+        setTimeout(() => {
+            if (tiltHandler) window.removeEventListener('deviceorientation', tiltHandler);
+            tiltBar.remove();
+        }, 19000);
+
         // 텍스트 시퀀스
         const txt = document.createElement('p');
         txt.style.cssText = `

@@ -1213,7 +1213,6 @@ function stopBassVibration(fadeDur = 3.0) {
 }
 
 function triggerEarPhase(finalPage, heartContainer) {
-    // 기존 페이지 천천히 페이드아웃
     finalPage.style.transition = 'opacity 2s ease';
     finalPage.style.opacity = '0';
     if (heartContainer) heartContainer.style.opacity = '0';
@@ -1226,68 +1225,15 @@ function triggerEarPhase(finalPage, heartContainer) {
         earPage.style.cssText = `
             position:fixed;inset:0;background:#ede0e8;z-index:700;
             display:flex;flex-direction:column;align-items:center;
-            justify-content:center;gap:32px;
+            justify-content:center;gap:28px;
             opacity:0;transition:opacity 2s ease;
         `;
         document.body.appendChild(earPage);
         setTimeout(() => { earPage.style.opacity = '1'; }, 50);
 
-        // 베이스 진동 시작
         startBassVibration();
 
-        // ── 기울기 시각 피드백 바 (하단) ──
-        const tiltBar = document.createElement('div');
-        tiltBar.style.cssText = `
-            position:fixed;bottom:0;left:50%;transform:translateX(-50%);
-            width:0%;height:2px;
-            background:rgba(160,80,120,0.5);
-            transition:width 0.4s ease, opacity 0.8s ease;
-            pointer-events:none;z-index:800;opacity:0;
-        `;
-        document.body.appendChild(tiltBar);
-
-        // ── WebSocket → 뚜껑 각도 → 베이스 볼륨 ──
-        // lid_ws.py 가 실행 중이면 자동 연결됨
-        let baseAngle = null;
-        let lidWS = null;
-
-        setTimeout(() => {
-            try {
-                lidWS = new WebSocket('ws://localhost:8765');
-
-                lidWS.onopen = () => {
-                    tiltBar.style.opacity = '1';
-                };
-
-                lidWS.onmessage = (e) => {
-                    const { angle } = JSON.parse(e.data);
-                    if (baseAngle === null) { baseAngle = angle; return; }
-
-                    // 뚜껑을 더 열수록(화면 뒤로 젖힐수록) 각도 증가 → 베이스 강해짐
-                    const delta = angle - baseAngle;
-                    const tilt  = Math.min(Math.max(delta / 30, 0), 1); // 30도 = 최대
-
-                    if (bassOscs.length && audioCtx) {
-                        bassOscs.forEach(({ g }, i) => {
-                            const base = i === 0 ? 0.42 : 0.28;
-                            g.gain.setTargetAtTime(base * (1 + tilt * 0.9), audioCtx.currentTime, 0.3);
-                        });
-                    }
-
-                    tiltBar.style.width = `${tilt * 80}%`;
-                };
-
-                lidWS.onerror = () => { tiltBar.style.opacity = '0'; };
-            } catch(err) { /* WebSocket 없으면 조용히 무시 */ }
-        }, 4000);
-
-        // 페이즈 종료 시 정리
-        setTimeout(() => {
-            if (lidWS) { lidWS.close(); lidWS = null; }
-            tiltBar.remove();
-        }, 19000);
-
-        // 텍스트 시퀀스
+        // ── 텍스트 ──
         const txt = document.createElement('p');
         txt.style.cssText = `
             font-family:'Noto Sans KR',sans-serif;
@@ -1299,25 +1245,45 @@ function triggerEarPhase(finalPage, heartContainer) {
         `;
         earPage.appendChild(txt);
 
-        const seq = [
-            { text: '소리가 들리나요',         delay: 1500 },
-            { text: '귀를 스피커에 가져다 대요', delay: 5000 },
-            { text: '느껴지나요',               delay: 10000 },
-        ];
+        // ── 슬라이드바 ──
+        const barWrap = document.createElement('div');
+        barWrap.style.cssText = `
+            width:220px;height:3px;
+            background:rgba(190,120,150,0.18);
+            border-radius:2px;position:relative;
+            opacity:0;transition:opacity 1.2s ease;
+        `;
+        const barFill = document.createElement('div');
+        barFill.style.cssText = `
+            position:absolute;left:0;top:0;
+            height:100%;width:0%;
+            background:rgba(190,80,120,0.6);
+            border-radius:2px;transition:width 0.25s ease;
+        `;
+        barWrap.appendChild(barFill);
+        earPage.appendChild(barWrap);
 
-        seq.forEach(({ text, delay }) => {
+        // ── 텍스트 전환 헬퍼 ──
+        function switchTxt(text) {
+            txt.style.transition = 'opacity 1.4s ease';
+            txt.style.opacity = '0';
             setTimeout(() => {
-                txt.style.opacity = '0';
-                setTimeout(() => {
-                    txt.innerText = text;
-                    txt.style.opacity = '1';
-                    playVoice(text);
-                }, 800);
-            }, delay);
-        });
+                txt.innerText = text;
+                playVoice(text);
+                txt.style.opacity = '1';
+            }, 800);
+        }
 
-        // 16초 뒤 베이스 페이드아웃 + 마지막 메시지
-        setTimeout(() => {
+        // ── WebSocket & 기울기 로직 ──
+        let baseAngle = null;
+        let lidWS = null;
+        let tiltPhase = 0; // 0:대기 1:젖히기 2:닫기 3:완료
+
+        function proceedToFinal() {
+            if (tiltPhase === 3) return;
+            tiltPhase = 3;
+            if (lidWS) { lidWS.close(); lidWS = null; }
+            barWrap.style.opacity = '0';
             stopBassVibration(3.5);
             txt.style.transition = 'opacity 2s ease';
             txt.style.opacity = '0';
@@ -1328,7 +1294,67 @@ function triggerEarPhase(finalPage, heartContainer) {
                 txt.style.color = 'rgba(110,50,80,0.45)';
                 txt.style.opacity = '1';
             }, 2500);
-        }, 16000);
+        }
+
+        function connectWS() {
+            try {
+                lidWS = new WebSocket('ws://localhost:8765');
+                lidWS.onmessage = (e) => {
+                    const { angle } = JSON.parse(e.data);
+                    if (baseAngle === null) { baseAngle = angle; return; }
+
+                    const delta = angle - baseAngle;
+                    const tilt  = Math.min(Math.max(delta / 30, 0), 1);
+
+                    // 베이스 볼륨: 젖힐수록 커짐, 닫을수록 작아짐
+                    if (bassOscs.length && audioCtx) {
+                        bassOscs.forEach(({ g }, i) => {
+                            const base = i === 0 ? 0.42 : 0.28;
+                            g.gain.setTargetAtTime(base * (1 + tilt * 0.9), audioCtx.currentTime, 0.3);
+                        });
+                    }
+
+                    // 슬라이드바 업데이트
+                    barFill.style.width = `${tilt * 100}%`;
+
+                    // 페이즈 전환
+                    if (tiltPhase === 1 && tilt > 0.55) {
+                        tiltPhase = 2;
+                        switchTxt('이번엔 모니터를 닫아주세요');
+                    }
+                    if (tiltPhase === 2 && tilt < 0.08) {
+                        proceedToFinal();
+                    }
+                };
+                lidWS.onerror = () => {};
+            } catch(e) {}
+        }
+
+        // ── 초기 텍스트 시퀀스 ──
+        [
+            { text: '소리가 들리나요',          delay: 1500  },
+            { text: '귀를 스피커에 가져다 대요', delay: 5000  },
+            { text: '느껴지나요',                delay: 10000 },
+        ].forEach(({ text, delay }) => {
+            setTimeout(() => {
+                txt.style.opacity = '0';
+                setTimeout(() => { txt.innerText = text; playVoice(text); txt.style.opacity = '1'; }, 800);
+            }, delay);
+        });
+
+        // ── 12초 후: 기울기 인터랙션 시작 ──
+        setTimeout(() => {
+            connectWS();
+            setTimeout(() => {
+                tiltPhase = 1;
+                barWrap.style.opacity = '1';
+                switchTxt('모니터를 젖혀주세요');
+            }, 800);
+        }, 12000);
+
+        // 40초 타임아웃 폴백 (WebSocket 없어도 자동 진행)
+        setTimeout(() => { proceedToFinal(); }, 40000);
+
     }, 2200);
 }
 
